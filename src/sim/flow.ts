@@ -155,70 +155,90 @@ export function computeSupply(run: RunState, s: FlowScratch, dt: number): void {
  * link's bandwidth, scaling proportionally by weight. That clamp is the contention rule,
  * and it is what makes adding a source to a busy trunk degrade everything already on it.
  */
+/**
+ * Split one star's available rate for one resource across its outbound links, by weight,
+ * accumulating into `linkRate`.
+ *
+ * The single implementation of the routing rule. Both the per-tick solve and the offline
+ * steady-state solve go through here, so the two cannot drift — which matters, because
+ * ROADMAP.md Phase 2 asks them to agree to within 1%.
+ */
+export function distributeRate(
+  run: RunState,
+  starId: StarId,
+  resourceIndex: number,
+  available: number,
+  linkRate: Float64Array,
+): void {
+  if (available <= 0) return;
+
+  const links = run.links;
+  const override = run.stars[starId].routing[resourceIndex];
+
+  if (override === null) {
+    const outbound = run.topology.descending[starId];
+    if (outbound.length === 0) return;
+    const share = available / outbound.length;
+    for (const linkId of outbound) {
+      const dir = links[linkId].a === starId ? DIR_AB : DIR_BA;
+      linkRate[(linkId * 2 + dir) * RESOURCE_COUNT + resourceIndex] += share;
+    }
+    return;
+  }
+
+  // Player weights are relative — normalise so they express proportions. A star whose
+  // weights sum to zero forwards nothing and will back up, which is a legitimate thing
+  // for a player to want.
+  let total = 0;
+  for (const key in override) total += override[key];
+  if (total <= 0) return;
+
+  for (const key in override) {
+    const linkId = Number(key);
+    const link = links[linkId];
+    if (link === undefined) continue;
+    if (link.a !== starId && link.b !== starId) continue;
+    const dir = link.a === starId ? DIR_AB : DIR_BA;
+    linkRate[(linkId * 2 + dir) * RESOURCE_COUNT + resourceIndex] +=
+      (override[key] / total) * available;
+  }
+}
+
+/** Clamp one link's total rate across both directions and all resources to its bandwidth. */
+export function clampLink(link: Link, linkRate: Float64Array): void {
+  const cap = bandwidth(link);
+  const abBase = (link.id * 2 + DIR_AB) * RESOURCE_COUNT;
+  const baBase = (link.id * 2 + DIR_BA) * RESOURCE_COUNT;
+
+  let total = 0;
+  for (let r = 0; r < RESOURCE_COUNT; r++) {
+    total += linkRate[abBase + r] + linkRate[baBase + r];
+  }
+  if (total <= cap) return;
+
+  const scale = cap / total;
+  for (let r = 0; r < RESOURCE_COUNT; r++) {
+    linkRate[abBase + r] *= scale;
+    linkRate[baBase + r] *= scale;
+  }
+}
+
 export function solveFlows(run: RunState, s: FlowScratch, dt: number): void {
   computeSupply(run, s, dt);
   s.rate.fill(0);
 
-  const { descending } = run.topology;
   const stars = run.stars;
   const links = run.links;
 
   for (let i = 0; i < stars.length; i++) {
-    const routing = stars[i].routing;
     const base = i * RESOURCE_COUNT;
-
     for (let r = 0; r < RESOURCE_COUNT; r++) {
-      const available = s.supply[base + r];
-      if (available <= 0) continue;
-
-      const override = routing[r];
-
-      if (override === null) {
-        const outbound = descending[i];
-        if (outbound.length === 0) continue;
-        const share = available / outbound.length;
-        for (const linkId of outbound) {
-          const dir = links[linkId].a === i ? DIR_AB : DIR_BA;
-          s.rate[(linkId * 2 + dir) * RESOURCE_COUNT + r] += share;
-        }
-        continue;
-      }
-
-      // Player weights are relative — normalise so they express proportions. A star
-      // whose weights sum to zero forwards nothing and will back up, which is a
-      // legitimate thing for a player to want.
-      let total = 0;
-      for (const key in override) total += override[key];
-      if (total <= 0) continue;
-
-      for (const key in override) {
-        const linkId = Number(key);
-        const link = links[linkId];
-        if (link === undefined) continue;
-        if (link.a !== i && link.b !== i) continue;
-        const dir = link.a === i ? DIR_AB : DIR_BA;
-        s.rate[(linkId * 2 + dir) * RESOURCE_COUNT + r] +=
-          (override[key] / total) * available;
-      }
+      distributeRate(run, i, r, s.supply[base + r], s.rate);
     }
   }
 
   for (let l = 0; l < links.length; l++) {
-    const cap = bandwidth(links[l]);
-    const abBase = (l * 2 + DIR_AB) * RESOURCE_COUNT;
-    const baBase = (l * 2 + DIR_BA) * RESOURCE_COUNT;
-
-    let total = 0;
-    for (let r = 0; r < RESOURCE_COUNT; r++) {
-      total += s.rate[abBase + r] + s.rate[baBase + r];
-    }
-    if (total <= cap) continue;
-
-    const scale = cap / total;
-    for (let r = 0; r < RESOURCE_COUNT; r++) {
-      s.rate[abBase + r] *= scale;
-      s.rate[baBase + r] *= scale;
-    }
+    clampLink(links[l], s.rate);
   }
 }
 

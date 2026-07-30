@@ -60,6 +60,15 @@ player has weighted. A star whose weights are all zero forwards nothing and back
 which seemed like a legitimate thing to want. If hold-back should be expressible, that is a
 rules change and belongs in `MECHANICS.md`.
 
+### 5. Offline resolution approximates player-set weights that do not descend the hop gradient
+The steady-state solve propagates inflow in one pass over stars ordered by hop distance,
+which is exact for the default routing because flow only descends the gradient. Weights the
+player sets by hand can route sideways or uphill, and a single pass under-propagates those.
+
+**Default taken:** one pass, accepted. Nothing sets overrides yet — the routing UI is Phase
+6 — and by then the honest fix is either iterating to a fixed point or refusing to let the
+default solve claim exactness. Worth revisiting when profiles land, not before.
+
 ---
 
 ## Resolved

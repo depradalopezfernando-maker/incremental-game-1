@@ -54,7 +54,9 @@ Still headless.
 - `save.ts` — serialize, deserialize, version field, migration hook
 
 **Acceptance:**
-- Resolving 12 hours offline completes in under 20ms
+- Resolving 12 hours offline completes in under 20ms, measured as a steady-state cost
+  rather than a single cold sample. The first call in a fresh process spends most of its
+  time being compiled, not solving; measure best-of-N and bound the cold path separately.
 - Offline result matches a slow tick-by-tick reference simulation of the same
   period to within 1%, verified by a test that runs both. Assert this over a period
   well above `offlineClosedFormMinSeconds`; closed-form resolution discards latency,

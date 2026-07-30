@@ -533,3 +533,13 @@ export const OFFLINE_COARSE_TICK_SECONDS = 60;
  * resolution discards latency, which is correct over hours and wrong over minutes.
  */
 export const OFFLINE_CLOSED_FORM_MIN_SECONDS = 120;
+
+/**
+ * A buffer below this is treated as empty. Without it, a buffer hovering at 1e-18 keeps
+ * generating "empties at t=1e-18" events and the interval solver burns its event budget
+ * making no progress.
+ */
+export const OFFLINE_BUFFER_EPSILON = 1e-9;
+
+/** Forced progress when every event lands at t≈0, for the same reason. */
+export const OFFLINE_MIN_INTERVAL_SECONDS = 1e-3;

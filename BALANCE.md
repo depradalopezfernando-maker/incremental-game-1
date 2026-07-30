@@ -377,6 +377,27 @@ losing material or for how long.
 Each interval is linear in every quantity, so `advanceAnalytically` is arithmetic,
 not iteration. A full 12-hour absence should resolve in single-digit milliseconds.
 
+Measured on a 40-star cluster with 39 links: **98 intervals, 6.4 ms** for twelve hours,
+and the interval count barely moves between a one-hour and a twelve-hour absence — the
+work scales with regime changes, not with elapsed time, which is the whole point.
+
+`solveFlows` here is a **steady-state** solve, not the per-tick one. Process stars in
+decreasing hop-distance order: that is a topological order for the default routing, since
+flow only ever descends the hop gradient, so a single pass propagates inflow exactly. Each
+star's forwardable rate is its extraction plus its inflow plus any standing backlog, links
+are clamped to bandwidth as they are visited, and the clamped rate becomes the downstream
+star's inflow.
+
+Three things end an interval, and they are the only three:
+
+- a star's reserve reaches zero
+- a buffer reaches capacity and starts venting
+- a buffer empties, dropping any recipe drawing on it to its inflow-limited rate
+
+A depletion that lands mid-interval must move the ledger and the buffer by the *same*
+amount — the material actually mined, not `rate * dt`. Using one for each loses material at
+every depletion, and the conservation test catches it immediately.
+
 Latency during offline resolution is ignored for material already in flight beyond
 the first interval — the steady-state flow already accounts for throughput, and
 transit delay is irrelevant over hours. Do flush in-flight segments into their
