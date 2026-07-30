@@ -1,9 +1,18 @@
 # Lightlace — design document review
 
+> **Status: resolved.** All findings below have been applied to the authority docs —
+> see § G for the edit-by-edit record. Three decisions were made by the project owner:
+> rate-based flow (A1), link cost coefficient `0.9` with the table corrected (B1), and
+> the free origin hub not counting toward hub cost scaling (D10). Two questions remain
+> open in `OPEN_QUESTIONS.md`; neither blocks Phase 1.
+>
+> This document is kept as the record of *why* the docs say what they now say. It is not
+> a live task list.
+
 Review of `DESIGN.md`, `MECHANICS.md`, `BALANCE.md`, `CONTENT.md`, `UI.md`, `ROADMAP.md`
-as of the current commit. No code exists yet, so everything here is a documentation
-finding: contradictions between docs, numbers that don't reproduce, and gaps that
-`src/sim/types.ts` and `flow.ts` cannot be written without resolving.
+as of commit `edc7a4c`. No code existed yet, so everything here is a documentation
+finding: contradictions between docs, numbers that didn't reproduce, and gaps that
+`src/sim/types.ts` and `flow.ts` could not be written without resolving.
 
 Findings are ordered by whether they block Phase 1, not by how interesting they are.
 
@@ -269,8 +278,8 @@ rituals bracketing the fun." `CONTENT.md` then sells **Standing orders** for 9 c
 "Profiles can auto-switch on tab blur/focus" — which automates away both rituals,
 permanently, for the price of the third-cheapest node in the tree.
 
-It also sits right on the line drawn by `MECHANICS.md` § 9 ("automation that routes
-for the player... must never make routing decisions"). Defensible reading: the player
+It also sits right on the line drawn by `MECHANICS.md` § Non-mechanics ("automation
+that routes for the player... must never make routing decisions"). Defensible reading: the player
 authored both profiles and the trigger, so no decision is being made for them. But the
 cost isn't the rule, it's that the game's stated best moment becomes opt-out.
 
@@ -406,27 +415,40 @@ discovering.
 
 ---
 
-## G. Proposed doc edits
+## G. Doc edits — applied
 
-Minimal changes, none applied — `BALANCE.md` is the authority on numbers and several of
-these are balance decisions rather than typo fixes.
+| Doc | Location | Change | Finding |
+|---|---|---|---|
+| `MECHANICS.md` | § 1 | `resource` admits `null` for anchors; `throttle` defaults to 1.0 | D9, D13 |
+| `MECHANICS.md` | § Upgrading | In-flight segments keep their `arrivesAt` | D6 |
+| `MECHANICS.md` | § Routing solve | Buffer-drain `desired()` replaced with the rate-based form, `supply()` and bounded `drawdown` | A1 |
+| `MECHANICS.md` | § Default weights *(new)* | Hop-distance-to-nearest-hub default, BFS on topology change; no-cycle guarantee; the outward-hydrogen reversal stated as intentional | C2, D5 |
+| `MECHANICS.md` | § 4 | Continuous consumption; starved vs backed-up stalls; recipe unlock rule | D2, D3, D4 |
+| `MECHANICS.md` | § 7 | Anchors generate at minimum tier 1 and never produce | D9 |
+| `MECHANICS.md` | § 9 *(new)* | `GameState` shape, meta/run split at the collapse boundary. Non-mechanics renumbered to § 10. | D1 |
+| `BALANCE.md` | § Star placement | Exponent `sqrt(u)^0.85` → `sqrt(u)^1.33`; named one algorithm; recorded why the exponent must exceed 0.5 | A4 |
+| `BALANCE.md` | § Seed guarantees | Six-step constructive sequence replaces "resampling until satisfied" | A3 |
+| `BALANCE.md` | § Reserve and yield | `yieldMult = richnessMult^0.5` added to `baseYield`; lifetime table marked class-neutral and the two real early stars tabulated | B4 |
+| `BALANCE.md` | § 2 | Worked examples → 368 / 1,288 / 4,415 / 14,716, with the old figures noted as coefficient 0.9515 | B1 |
+| `BALANCE.md` | § 3 | `hubsOwned` → `hubsPurchased`; `capacity()` composition; `BUFFER_DRAWDOWN_SECONDS = 5` | D7, D10, A1 |
+| `BALANCE.md` | § 7 | 27 nodes / 372 charts / 7–8 collapses, with the cumulative award curve; true wormhole cost | B2, B3 |
+| `BALANCE.md` | § 8 | `offlineClosedFormMinSeconds = 120`; `flushInFlightSegments` and `recordVenting` in the pseudocode | D14, D15 |
+| `BALANCE.md` | class table | Binary yieldMult wording — 1.30 applied twice, not two outputs | D8 |
+| `CONTENT.md` | § Star classes | Binary is one resource at double yield; anchors are `null` and tier 1 | D8, D9 |
+| `CONTENT.md` | § Chart tree | 372 charts / 27 nodes with branch subtotals; Folded space prerequisite ≥20 → **≥11** | B2, B3 |
+| `CONTENT.md` | § Arrival summary | Capped-absence line | C4 |
+| `UI.md` | § Resource bar | Stockpile defined as the network-wide sum of buffers; 2 s EMA on displayed rates | A2, D11 |
+| `UI.md` | § Number formatting | One decimal below 10; rollover at 999,950 so `1000.0K` never renders | D12 |
+| `ROADMAP.md` | Phase 1 | Per-resource conservation identity with `consumedByRecipes`; new `dt`-independence test | B5, A1 |
+| `ROADMAP.md` | Phase 2 | ±1% assertion scoped above `offlineClosedFormMinSeconds` | D15 |
+| `ROADMAP.md` | Phase 4 | Phase-6 chart nodes rendered locked, not hidden; `yieldMult` named as the 2.6× lever | F, B4 |
 
-| Doc | Location | Change |
-|---|---|---|
-| `MECHANICS.md` | § Routing solve | Replace the buffer-drain `desired()` with the rate-based form (A1); state which hub default weights target (C2); state the no-cycle default (D5) |
-| `MECHANICS.md` | new § | `GameState` shape, meta/run split (D1) |
-| `MECHANICS.md` | § Refining | Continuous consumption (D2); output-full stalls (D3); recipe unlock rule (D4) |
-| `BALANCE.md` | § 8 | Add `offlineClosedFormMinSeconds = 120` (D15); add per-star vent attribution to the pseudocode (D14) |
-| `BALANCE.md` | § Star placement | Exponent `0.85` → `1.33` (A4); name one algorithm; replace "resampling until satisfied" with the constructive sequence (A3) |
-| `BALANCE.md` | § 2 | Worked example column → 368 / 1,288 / 4,415 / 14,716 (B1) |
-| `BALANCE.md` | § 3 | `hubsOwned` counts purchased hubs only (D10) |
-| `BALANCE.md` | § Reserve and yield | Add `richnessMult` (or `1.2^n`) to `baseYield` (B4); note the lifetime table is class-neutral |
-| `BALANCE.md` | § 7 | Chart total 340 → 372, collapses-to-clear 5–6 → 7–8 (B2); drop the "wormholes reachable at collapse 3" claim or repoint it (B3) |
-| `CONTENT.md` | § Chart tree | Total 342 → 372, node count 28 → 27 (B2); Folded space prerequisite ≥20 → ≥13 (B3) |
-| `CONTENT.md` | § Arrival summary | Add the capped-absence line (C4) |
-| `UI.md` | § Resource bar | Say what the stockpile number is (A2); rate smoothing (D11) |
-| `UI.md` | § Number formatting | Sub-unit rule and the `999,999` → `1.00M` rollover (D12) |
-| `ROADMAP.md` | Phase 1 acceptance | Per-resource conservation identity with a recipe-consumption term (B5) |
-| `ROADMAP.md` | Phase 4 | Unimplemented chart nodes hidden or locked (F) |
+**One correction to this review's own recommendation.** B3 originally proposed lowering
+the Folded space prerequisite from ≥20 to ≥13. That barely helps: the Extraction branch
+has no node priced between 11 and 24, so ≥13 still forces Deep survey IV (24) and leaves
+the true cost at 81 charts — past what collapse 3 affords. The applied threshold is
+**≥11**, which admits Deep survey III and brings wormholes to 68 charts all in.
 
-The four decisions I can't make from the docs are in `OPEN_QUESTIONS.md`.
+Two questions remain open in `OPEN_QUESTIONS.md`: whether `Standing orders` should exist
+at 9 charts (C1), and which recipe-slot acquisition path should dominate (C3). Neither
+blocks Phase 1.

@@ -24,11 +24,17 @@ No UI. No canvas. Nothing on screen.
 **Acceptance:**
 - A test builds a fixed 5-star network, runs 30 simulated minutes in under 200ms,
   and asserts exact stockpile values
-- A test asserts material is conserved: `extracted == delivered + inTransit + vented`
-  to within floating-point tolerance
+- A test asserts material is conserved, per raw resource:
+  `extracted[r] == inBuffers[r] + inTransit[r] + vented[r] + consumedByRecipes[r]`
+  to within floating-point tolerance. Refining destroys its inputs, so the identity
+  needs that last term — without it the assertion fails the moment a hub runs.
 - A test asserts a saturated trunk degrades all flows on it proportionally
 - A test asserts a hub with 2 of 3 inputs stalls and does not consume
-- Same seed produces byte-identical clusters across runs
+- A test asserts the simulation is `dt`-independent: the same network run for 10
+  minutes at 10 Hz, 1 Hz, and one 600 s step agrees to within 1%. Phase 2's offline
+  solver is only correct if this holds — see `MECHANICS.md` § Routing solve.
+- Same seed produces byte-identical clusters across runs, including after the
+  constructive seed guarantees in `BALANCE.md` § Seed guarantees
 
 ---
 
@@ -42,7 +48,10 @@ Still headless.
 **Acceptance:**
 - Resolving 12 hours offline completes in under 20ms
 - Offline result matches a slow tick-by-tick reference simulation of the same
-  period to within 1%, verified by a test that runs both
+  period to within 1%, verified by a test that runs both. Assert this over a period
+  well above `offlineClosedFormMinSeconds`; closed-form resolution discards latency,
+  so short absences take the real-tick path instead and the ±1% claim does not apply
+  to them — see `BALANCE.md` § 8.
 - A save round-trips losslessly
 - Depletion events during offline are correctly ordered and applied
 
@@ -85,11 +94,20 @@ and lines, the visuals will not save it, and the fix belongs in `BALANCE.md` § 
 - Alerts strip
 - Collapse: chart award, cluster regeneration, chart tree UI and effects
 
+Four chart nodes unlock features scheduled for Phase 6 — `Routing profiles`,
+`Standing orders`, `Folded space`, and `Parallel refining`'s interaction with hub slots.
+Render them explicitly locked with the phase they arrive in; do not hide them. The
+`Routing profiles` decision at the first collapse is called out in `BALANCE.md` § 7 as
+the tension of the first prestige, so the player should see it coming even while it is
+unbuyable.
+
 **Acceptance:**
 - A full run to first collapse is playable and lands within the § 10 pacing targets,
   measured by actually playing it and logging timestamps
 - Chart tree purchases persist across collapse and measurably accelerate run 2
-- Second run reaches 25 cores roughly 2.6× faster than the first
+- Second run reaches 25 cores roughly 2.6× faster than the first. `yieldMult` in
+  `BALANCE.md` § Reserve and yield is the intended lever; if the measured figure comes
+  in low, that exponent is the first thing to raise.
 
 ---
 

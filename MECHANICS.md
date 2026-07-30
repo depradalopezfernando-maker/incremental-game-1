@@ -18,12 +18,12 @@ Each star has:
 |---|---|
 | `id`, `x`, `y` | Position, immutable |
 | `class` | Determines resource type and modifiers — see `CONTENT.md` |
-| `resource` | `hydrogen` \| `metals` \| `isotopes` |
+| `resource` | `hydrogen` \| `metals` \| `isotopes` \| `null` (wormhole anchors only) |
 | `reserve` | Remaining material. Decreases forever. Never regenerates. |
 | `reserveMax` | For UI display of depletion fraction |
 | `baseYield` | Units/sec at 100% throttle before upgrades |
 | `tier` | 0–4. Determines ports and buffer capacity. |
-| `throttle` | 0.0–1.0, player-set |
+| `throttle` | 0.0–1.0, player-set. Defaults to 1.0 on claim. |
 | `buffer` | `Record<Resource, number>`, current stored material |
 | `role` | `none` \| `hub` |
 | `claimed` | Whether the player has connected it |
@@ -82,7 +82,9 @@ Cost is paid in metals (tier 1) or alloy (tiers 2–4) and scales with length.
 ### Upgrading
 
 A link can be upgraded to the next tier at any time for the cost difference plus a
-surcharge. Upgrading is instantaneous and does not interrupt flow. Upgrading raises
+surcharge. Upgrading is instantaneous and does not interrupt flow. Segments already in
+transit keep the `arrivesAt` they were dispatched with — they were sent under the old
+physics and are not retimed. Upgrading raises
 both bandwidth and propagation speed — see `BALANCE.md` § Link tiers. **The speed
 increase is the emotionally important part**: upgrading a long trunk makes the whole
 network suddenly feel responsive, and that should be the reward the player chases.
@@ -107,15 +109,15 @@ Do not simulate individual packets or spawn traveling entities. The network is a
    capped by remaining reserve. Add to the star's buffer for its resource. Subtract
    from reserve.
 
-2. **Solve flows.** Compute the rate assigned to each directed link, respecting
+2. **Arrive.** Pop all segments on all links with `arrivesAt <= now` and add to the
+   destination buffer.
+
+3. **Solve flows.** Compute the rate assigned to each directed link, respecting
    bandwidth and routing weights. See § Routing solve.
 
-3. **Depart.** For each link, remove `rate * dt` from the source buffer and push a
+4. **Depart.** For each link, remove `rate * dt` from the source buffer and push a
    segment `{ resource, amount, arrivesAt }` onto the link's delay queue, where
    `arrivesAt = now + link.latency`.
-
-4. **Arrive.** Pop all segments on all links with `arrivesAt <= now` and add to the
-   destination buffer.
 
 5. **Refine.** Hubs with active recipe slots consume from their buffer and produce
    output — see § Refining.
@@ -123,8 +125,17 @@ Do not simulate individual packets or spawn traveling entities. The network is a
 6. **Vent.** For each star, for each resource, if `buffer[r] > capacity(star)`, set
    it to capacity and add the excess to `run.vented[r]`. **The excess is destroyed.**
 
-Order matters. Venting happens last so a star that receives and forwards in the same
-tick doesn't lose material spuriously.
+Order matters, in two places.
+
+**Arrive precedes Solve and Depart** so that everything a star has this tick is sitting
+in its buffer before rates are computed. A relay can therefore receive and forward
+within the same tick, and — more importantly — `supply()` in § Routing solve can count
+arriving material without the solve promising a rate the buffer cannot cover at step 4.
+Material still only arrives when its segment matures, so this does not let anything skip
+a hop; it just removes a spurious one-tick stall at every relay.
+
+**Vent happens last** so a star that receives and forwards in the same tick doesn't lose
+material spuriously.
 
 ### Delay queues
 
@@ -135,17 +146,51 @@ other. A link should never hold more than a few dozen segments.
 ### Routing solve
 
 Each star has a **routing table**: for each resource, a set of weights over its
-outbound links. Weights are player-set (default: even split across links that lead
-toward a hub).
+outbound links. Weights are player-set; the default is described in § Default weights
+below.
 
 The solve is deliberately simple — it is not a min-cost-flow optimizer, because the
 player optimizing the network *is the game*. Do not build an optimizer that plays the
 game for them.
 
-For each directed link, desired rate is:
+**Flow is a rate, not a buffer drain.** The rate assigned to a link must not depend on
+`dt`. The same network simulated at 10 Hz, at 1 Hz, and resolved in closed form offline
+must produce the same answer. This is not a nicety: it is what makes § 8's offline
+solver possible at all, what keeps the long-running conservation tests meaningful at
+coarse step sizes, and what makes link utilisation a gradient the player can read
+rather than a binary that pins to full whenever anything is upstream.
+
+For each star and resource, the supply available to forward this tick is:
 
 ```
-desired(link, r) = sourceBuffer[r] available this tick, split by weight
+supply(star, r) = extractionRate(star, r)     // 0 unless r is this star's resource
+                + arrivingRate(star, r)       // segments landed at step 2
+                + carried(star, r) / BUFFER_DRAWDOWN_SECONDS
+
+  where carried = buffer[r] at the end of the previous tick
+                  (i.e. buffer[r] now, less this tick's extraction and arrivals)
+
+  and the total is capped at buffer[r] / dt
+```
+
+The three terms are disjoint, which is the point — extraction and arrivals pass straight
+through at their own rate, and only the standing backlog is metered. Double-counting
+them against the buffer they were just added to would let a star promise twice what it
+holds.
+
+The `/ dt` cap keeps a buffer from going negative at step 4. The
+`BUFFER_DRAWDOWN_SECONDS` divisor is what stops a full buffer from demanding an unbounded
+rate and saturating every link downstream of it.
+
+Note what this gives you in steady state: with no backlog, `supply` equals the rate
+material is actually showing up at, so link flow settles at exactly the upstream
+production rate and buffers sit flat. That is what keeps the intervals in `BALANCE.md`
+§ 8 linear rather than exponential — the property the closed-form solver depends on.
+
+Then, for each directed link:
+
+```
+desired(link, r) = weight(link, r) * supply(source, r)
 ```
 
 Then clamp: the sum of all resources' rates on a link cannot exceed the link's
@@ -154,6 +199,24 @@ the contention rule — and it is what makes adding a source to a busy trunk deg
 everything already on it.
 
 Surplus that can't move stays in the buffer, and if the buffer is full, it vents.
+
+### Default weights
+
+The default is an even split across those of a star's links whose far endpoint has a
+strictly **lower hop-distance to the nearest hub**. Hop-distances come from a
+breadth-first search recomputed when topology or hub designation changes — never per
+tick.
+
+Two consequences are worth stating outright:
+
+- **No cycle forms by default.** Flow only descends the hop gradient, so material
+  cannot loop back on itself and burn bandwidth. A player who sets weights that do
+  create a cycle gets one; that is their business, and the map will show it plainly.
+- **"Nearest hub" means nearest, not best.** Once a second hub exists, interior
+  material keeps flowing to the origin. Pushing hydrogen *outward* to a frontier
+  catalyst hub is a deliberate re-weighting the player has to make. The defaults are
+  meant to be wrong for that, not to anticipate it — the polarity reversal around 0:50
+  is the phase-2 lesson.
 
 ### Routing profiles
 
@@ -191,13 +254,42 @@ Any claimed star can be **designated a hub** for a cost. A hub:
 - gains a much larger buffer
 - can be un-designated, refunding a fraction
 
-Each recipe slot is assigned one recipe. A slot runs a cycle only if **all inputs are
-present in that hub's own buffer**. Partial inputs mean the slot stalls and the
-present inputs sit there.
+Each recipe slot is assigned one recipe. A slot draws **all of its inputs from that
+hub's own buffer**. If any input is absent the slot stalls, and the inputs that are
+present sit there untouched.
 
 This is the co-location constraint that makes recipes interesting: it is not enough
 to produce metals and hydrogen somewhere, they must *arrive at the same star*, in
 ratio, with enough bandwidth on both branches to sustain the recipe rate.
+
+**Consumption is continuous, not batched.** A slot consumes inputs and produces output
+at the sustained rates in `BALANCE.md` § 4, scaled by `dt`. The cycle time in that
+table is presentation — it sets how the slot animates and how progress reads in the
+inspector, not how material moves. Discrete all-or-nothing batches would make the
+closed-form offline solver in `BALANCE.md` § 8 impossible, since a hub's state would
+depend on where in a 4-second cycle it happened to be.
+
+A slot runs at a fraction of its rate if inputs are available but insufficient — it
+consumes what is there, in ratio, and produces proportionally. It never consumes an
+input it cannot pair with the others.
+
+### Stalling
+
+A slot stalls, consuming nothing, in two distinct cases, and the UI must tell them
+apart:
+
+- **Starved.** One or more inputs are absent from the hub's buffer. Name the missing
+  input.
+- **Backed up.** The output resource is at buffer capacity. Inputs are preserved —
+  refined goods are never destroyed for want of space. Venting applies only to
+  extraction overflow, at step 6 of the tick.
+
+### Recipe unlocks
+
+A recipe becomes permanently available the first time the network holds at least one
+of each of its inputs anywhere. Catalyst unlocks on first isotopes, lattice core on
+first alloy and catalyst held together. The alloy recipe is available from the start.
+Unlocks are stored on the persistent side of state and survive collapse — see § 9.
 
 ### Stalling is visible
 
@@ -260,6 +352,13 @@ can be built between two anchors regardless of distance, with:
 - **a cost in lattice cores**, not alloy — they are genuinely expensive
 - consumption of two ports at each end, not one
 
+Because a wormhole eats two ports and claiming the anchor in the first place eats a
+third, **anchors generate at minimum node tier 1** (3 ports). At tier 0 an anchor could
+be claimed or wormholed but never both. Tier 1 is an exact fit with no slack, so an
+anchor that also needs to relay anything wants upgrading.
+
+Anchors have no resource and never produce. They are pure topology.
+
 Wormholes break the geometric assumption the player has been building around for
 hours. A frontier that was 900 lu away and effectively unreachable becomes a
 one-hop neighbour. The correct network shape changes completely. That's the point.
@@ -280,7 +379,43 @@ That is the feedback that makes the pre-departure ritual matter.
 
 ---
 
-## 9. Non-mechanics — deliberately absent
+## 9. State shape
+
+State splits in two, and the split is exactly the collapse boundary from § 6. If you
+are unsure which side something belongs on, ask whether it should survive a collapse.
+
+```
+GameState
+  meta                          persists across collapse
+    charts                      unspent
+    chartNodesPurchased         set of node ids
+    recipesUnlocked             set of recipe ids
+    collapseCount               n, drives generation in BALANCE.md § 1
+    stats                       lifetime totals, for display only
+  run                           discarded on collapse
+    seed                        the cluster's seed
+    elapsed                     seconds of simulated time this run
+    stars                       by id, shape as § 1
+    links                       by id, shape as § 2, each with its delay queue
+    hopDistance                 derived, cached, rebuilt on topology change
+    upgrades                    k per within-run upgrade track, BALANCE.md § 5
+    profiles                    saved routing profiles, once unlocked
+    vented                      Record<Resource, number>, cumulative this run
+    consumedByRecipes           Record<Resource, number>, cumulative this run
+    producedByRecipes           Record<Resource, number>, cumulative this run
+    coresProduced               lifetime this run, drives the collapse award
+```
+
+`vented`, `consumedByRecipes` and `producedByRecipes` exist so material can be
+accounted for exactly. See `ROADMAP.md` Phase 1 for the conservation identity they
+satisfy; the arrival summary in `CONTENT.md` needs them too.
+
+Everything under `run` is regenerated from `seed` and `meta` at collapse. Nothing under
+`meta` is ever recomputed from `run`.
+
+---
+
+## 10. Non-mechanics — deliberately absent
 
 Do not add these. Each was considered and rejected:
 
