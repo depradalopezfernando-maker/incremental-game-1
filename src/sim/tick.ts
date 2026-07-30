@@ -359,6 +359,7 @@ function vent(state: GameState, s: FlowScratch, bufMult: number): void {
         buffer[r] = capacity;
         run.vented[r] += excess;
         state.meta.stats.totalVented += excess;
+        star.lastVentAt = run.elapsed;
         totals[r] += capacity;
       } else {
         totals[r] += held;

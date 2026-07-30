@@ -87,7 +87,8 @@ Minimum viable interface. Ugly is fine. Functional is not optional.
 - A person can play the first 40 minutes end to end: claim stars, build links, watch
   a star deplete, react by expanding
 - Closing the tab for 10 minutes and returning produces correct state
-- Frame rate stays above 55fps with 40 stars and 60 links
+- Frame rate stays above 55fps with 40 stars and 60 links — measured at 60 fps (vsync-capped)
+  in headless Chromium at 1400×860
 
 **Stop here and play it for a full session before continuing.** Everything after
 this is amplification. If the first 40 minutes aren't interesting with plain circles

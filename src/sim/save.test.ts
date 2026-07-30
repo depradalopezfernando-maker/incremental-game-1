@@ -33,6 +33,7 @@ function fingerprint(state: GameState) {
     seed: state.run.seed,
     coresProduced: state.run.coresProduced,
     upgrades: { ...state.run.upgrades },
+    hubsPurchased: state.run.hubsPurchased,
     extracted: toAmounts(state.run.extracted),
     granted: toAmounts(state.run.granted),
     vented: toAmounts(state.run.vented),
@@ -56,6 +57,7 @@ function fingerprint(state: GameState) {
       recipes: star.slots.map((slot) => slot.recipe),
       extractionK: star.extractionK,
       routing: star.routing.map((entry) => (entry === null ? null : { ...entry })),
+      lastVentAt: star.lastVentAt,
     })),
     links: state.run.links.map((link) => ({
       id: link.id,

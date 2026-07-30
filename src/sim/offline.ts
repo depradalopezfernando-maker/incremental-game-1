@@ -366,6 +366,7 @@ function advanceAnalytically(
         if (delta > 0) {
           run.vented[r] += delta;
           state.meta.stats.totalVented += delta;
+          star.lastVentAt = run.elapsed + dt;
           ventSeconds[idx] += dt;
           ventAmount[idx] += delta;
         }
@@ -382,6 +383,7 @@ function advanceAnalytically(
         held = capacity;
         run.vented[r] += excess;
         state.meta.stats.totalVented += excess;
+        star.lastVentAt = run.elapsed + dt;
         ventSeconds[idx] += dt;
         ventAmount[idx] += excess;
       }

@@ -67,6 +67,7 @@ function makeStar(id: number, spec: StarSpec): Star {
     slots,
     extractionK: 0,
     routing: makeRouting(),
+    lastVentAt: -1,
   };
 }
 
@@ -95,6 +96,7 @@ export function buildNetwork(stars: readonly StarSpec[], links: readonly LinkSpe
     links: builtLinks,
     topology: { hopDistance: [], adjacency: [], descending: [] },
     upgrades: { extractionGlobal: 0, buffer: 0, scanRange: 0 },
+    hubsPurchased: 0,
     profiles: [],
     extracted: makeVector(),
     granted: makeVector(),

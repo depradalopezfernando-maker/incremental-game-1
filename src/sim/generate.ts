@@ -274,6 +274,7 @@ export function generateRun(seed: number, collapseCount: number): RunState {
       slots: makeSlots(tier, isHub),
       extractionK: 0,
       routing: makeRouting(),
+      lastVentAt: -1,
     });
   }
 
@@ -294,6 +295,7 @@ export function generateRun(seed: number, collapseCount: number): RunState {
     links: [],
     topology: { hopDistance: [], adjacency: [], descending: [] },
     upgrades: { extractionGlobal: 0, buffer: 0, scanRange: 0 },
+    hubsPurchased: 0,
     profiles: [],
     extracted: makeVector(),
     granted,

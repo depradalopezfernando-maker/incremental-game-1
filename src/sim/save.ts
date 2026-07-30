@@ -78,6 +78,7 @@ interface SavedStar {
   slots: { recipe: string | null }[];
   extractionK: number;
   routing: (Record<string, number> | null)[];
+  lastVentAt: number;
 }
 
 export interface SavedGame {
@@ -97,6 +98,7 @@ export interface SavedGame {
     stars: SavedStar[];
     links: SavedLink[];
     upgrades: { extractionGlobal: number; buffer: number; scanRange: number };
+    hubsPurchased: number;
     profiles: { name: string; routing: (Record<string, number> | null)[][]; throttles: number[] }[];
     extracted: number[];
     granted: number[];
@@ -130,6 +132,7 @@ export function serialize(state: GameState, savedAt: number = Date.now()): Saved
       stars: run.stars.map(serializeStar),
       links: run.links.map(serializeLink),
       upgrades: { ...run.upgrades },
+      hubsPurchased: run.hubsPurchased,
       profiles: run.profiles.map((profile) => ({
         name: profile.name,
         routing: profile.routing.map((overrides) => overrides.map(cloneOverride)),
@@ -169,6 +172,7 @@ function serializeStar(star: Star): SavedStar {
     slots: star.slots.map((slot) => ({ recipe: slot.recipe })),
     extractionK: star.extractionK,
     routing: star.routing.map(cloneOverride),
+    lastVentAt: star.lastVentAt,
   };
 }
 
@@ -259,6 +263,7 @@ export function deserialize(raw: unknown): GameState {
     links,
     topology: { hopDistance: [], adjacency: [], descending: [] },
     upgrades: { ...save.run.upgrades },
+    hubsPurchased: save.run.hubsPurchased ?? 0,
     profiles: save.run.profiles.map((profile) => ({
       name: profile.name,
       routing: profile.routing.map((overrides) => overrides.map(cloneOverride)),
@@ -313,6 +318,7 @@ function deserializeStar(saved: SavedStar): Star {
     slots,
     extractionK: saved.extractionK,
     routing,
+    lastVentAt: saved.lastVentAt ?? -1,
   };
 }
 

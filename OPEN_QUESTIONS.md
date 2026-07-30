@@ -69,6 +69,21 @@ player sets by hand can route sideways or uphill, and a single pass under-propag
 6 — and by then the honest fix is either iterating to a fixed point or refusing to let the
 default solve claim exactness. Worth revisiting when profiles land, not before.
 
+### 6. The opening 300 metals is both the link budget and the refinery's feedstock
+The player starts with 300 metals and an origin hub whose alloy slot is already running. The
+slot consumes 0.75 metals/s, so the opening stockpile is gone in 6m 40s — while the first link
+costs 65–200 metals depending on where the generator put the neighbours.
+
+Left alone this is a **soft-lock**: metals become alloy, tier-I links need metals, and with no
+metals star claimed there is no way to get more. Phase 3 ships a slot control so the player can
+stop the refinery, which removes the lock. But the tension is real and probably deliberate-
+adjacent rather than deliberate — § 10 says `first alloy produced 0:14`, and in practice it is
+0:00 because the metals are already in hand.
+
+**Default taken:** the slot ships running, with a control to stop it. Options if playtesting
+says the opening reads badly: ship the slot stopped, or drop the opening grant to ~200 metals
+and let the first alloy wait for the rocky remnant, which is what the 0:14 target implies.
+
 ---
 
 ## Resolved
@@ -99,3 +114,7 @@ default solve claim exactness. Worth revisiting when profiles land, not before.
 | Seed guarantees | Constructive six-step placement, not whole-cluster resampling. | `BALANCE.md` § Seed guarantees |
 | Phase 1 conservation identity | Per raw resource, with a `consumedByRecipes` term. | `ROADMAP.md` Phase 1 |
 | Phase-6 chart nodes in Phase 4 | Rendered locked with their phase, not hidden. | `ROADMAP.md` Phase 4 |
+| Where do player actions live? | `sim/actions.ts` — they are rules, so they stay headless and testable, and the interface only calls them. | `sim/actions.ts` |
+| Do new hub slots start assigned? | Yes, to `alloy` — the only recipe unlocked when the first hubs are bought, and an unassigned slot does nothing. Explicit assignment is Phase 4. | `sim/actions.ts` |
+| How does React see a simulation that mutates in place? | It doesn't. The loop publishes a HUD snapshot at 5 Hz into Zustand; the canvas reads live state every frame and never re-renders through React. | `app/hud.ts`, `app/store.ts` |
+| Are unclaimed stars drawn in class colour? | Yes, dim and small. A uniform grey dot makes every expansion decision blind. | `render/map.ts` |

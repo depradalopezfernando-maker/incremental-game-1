@@ -154,6 +154,15 @@ export interface Star {
   /** Per-star extraction upgrade level, `k` in BALANCE.md § 5. Max 4. */
   extractionK: number;
   routing: RoutingOverrides;
+  /**
+   * `run.elapsed` when this star last destroyed material through overflow, or -1 if never.
+   *
+   * Venting has to be visible *per star* rather than only as a network total: UI.md wants a
+   * persistent marker beside the star for as long as it continues, and the network summary
+   * counts how many stars are currently losing material. Neither is reconstructable from
+   * `run.vented`, which is a single figure for the whole network.
+   */
+  lastVentAt: number;
 }
 
 /** Material in transit on a link. Not an entity — see MECHANICS.md § 3. */
@@ -245,6 +254,13 @@ export interface RunState {
     buffer: number;
     scanRange: number;
   };
+  /**
+   * Hubs the player has paid for. Drives `hubDesignateCost` — the origin hub is granted
+   * free at run start and deliberately does not count, so the second hub in the network is
+   * the first purchase. Un-designating decrements it, which is what makes trading a
+   * stranded interior hub for a frontier one a real move.
+   */
+  hubsPurchased: number;
   profiles: RoutingProfile[];
   /**
    * Cumulative ledgers, this run. Together they close the conservation identity in

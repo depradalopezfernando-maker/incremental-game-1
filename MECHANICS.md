@@ -27,6 +27,7 @@ Each star has:
 | `buffer` | Stored material per resource — see § 9 on representation |
 | `role` | `none` \| `hub` |
 | `claimed` | Whether the player has connected it |
+| `lastVentAt` | When this star last destroyed material through overflow, for the map marker and the network summary |
 
 A star is **claimed** by building a link to it. Unclaimed stars are visible (dimmed)
 within scan range and invisible beyond it.
@@ -407,6 +408,7 @@ GameState
     links                       by id, shape as § 2, each with its delay queue
     hopDistance                 derived, cached, rebuilt on topology change
     upgrades                    k per within-run upgrade track, BALANCE.md § 5
+    hubsPurchased               hubs paid for; the free origin hub does not count
     profiles                    saved routing profiles, once unlocked
     extracted                   cumulative this run, per resource
     granted                     material handed over rather than mined — the opening
