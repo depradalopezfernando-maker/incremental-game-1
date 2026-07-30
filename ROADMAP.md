@@ -29,10 +29,18 @@ No UI. No canvas. Nothing on screen.
   to within floating-point tolerance. Refining destroys its inputs, so the identity
   needs that last term — without it the assertion fails the moment a hub runs.
 - A test asserts a saturated trunk degrades all flows on it proportionally
-- A test asserts a hub with 2 of 3 inputs stalls and does not consume
+- A test asserts a hub holding some but not all of a recipe's inputs stalls, consumes
+  nothing, and names every missing input (no recipe has three inputs — the alloy and
+  catalyst recipes have two each)
 - A test asserts the simulation is `dt`-independent: the same network run for 10
-  minutes at 10 Hz, 1 Hz, and one 600 s step agrees to within 1%. Phase 2's offline
-  solver is only correct if this holds — see `MECHANICS.md` § Routing solve.
+  minutes at 10 Hz, 4 Hz, 2 Hz and 1 Hz agrees to within 1%. Phase 2's offline solver is
+  only correct if this holds — see `MECHANICS.md` § Routing solve.
+
+  `dt` has to stay well below link latency for this to mean anything. Arrival is quantised
+  to tick boundaries, so a step comparable to a link's latency changes *when* material
+  lands, not just the rate it lands at — and a single step longer than the latency delivers
+  nothing at all, because a segment cannot depart and arrive in the same tick. Resolution
+  coarser than that is `BALANCE.md` § 8's job, not the tick's.
 - Same seed produces byte-identical clusters across runs, including after the
   constructive seed guarantees in `BALANCE.md` § Seed guarantees
 
@@ -156,6 +164,11 @@ exactly the kind that only surface after simulated hours.
 
 Keep a permanent test that runs a scripted 6-hour game and asserts conservation of
 material and no NaN anywhere in state. Run it in CI.
+
+Run it at a coarse step (1 Hz), not the live 10 Hz. Conservation and finiteness are
+`dt`-independent properties and the step sizes are compared against each other separately,
+so the endurance test buys nothing from the finer step — and at 10 Hz on a realistic
+40-star cluster it takes ~7.4s, which would spend most of the 10-second budget on one test.
 
 ---
 

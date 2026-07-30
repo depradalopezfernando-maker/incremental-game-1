@@ -38,13 +38,37 @@ it is cheap to defer.
 
 ---
 
+## Raised during Phase 1 implementation
+
+### 3. Wormhole bandwidth, latency and cost are not specified anywhere
+`MECHANICS.md` § 7 says a wormhole has "latency independent of length (a small fixed
+value)", "very high bandwidth", and "a cost in lattice cores". `BALANCE.md` has no numbers
+for any of the three. Phase 6 cannot be built without them.
+
+**Default if unanswered:** none taken — `Link.kind` carries `'wormhole'` in the type, and
+bandwidth/latency currently fall through to the tier table. Needs real numbers before
+Phase 6, not a guess from me.
+
+### 4. Do player-set routing weights normalise?
+`MECHANICS.md` § Routing solve says weights are "a set of weights over its outbound links"
+and the default is an "even split", which implies proportions. Nothing says what happens if
+the player's weights sum to less than 1 — is that a deliberate hold-back, or just
+relative weighting?
+
+**Default taken:** weights are relative and normalised to sum to 1 over the links the
+player has weighted. A star whose weights are all zero forwards nothing and backs up,
+which seemed like a legitimate thing to want. If hold-back should be expressible, that is a
+rules change and belongs in `MECHANICS.md`.
+
+---
+
 ## Resolved
 
 | Question | Resolution | Now owned by |
 |---|---|---|
 | Rate-based flow or buffer-drain? | **Rate-based**, `dt`-independent. Contention rule unchanged. | `MECHANICS.md` § Routing solve |
 | Where does spendable material live? | Network-wide sum of buffers; purchases debit nearest-first. Co-location constrains refining only. | `UI.md` § Resource bar |
-| Link cost — formula or table? | **Formula wins at `0.9`**; table corrected to 368 / 1,288 / 4,415 / 14,716. | `BALANCE.md` § 2 |
+| Link cost — formula or table? | **Formula wins at `0.9`**; table corrected to 368 / 1,287 / 4,413 / 14,710. | `BALANCE.md` § 2 |
 | Does the free origin hub count toward hub cost? | **No** — `hubsPurchased` counts paid hubs only, so the second hub costs 250 alloy and lands at ~0:31. | `BALANCE.md` § 3 |
 | Where does 2.6× second-run acceleration come from? | `yieldMult = richnessMult^0.5` on `baseYield`; re-measure in Phase 4. | `BALANCE.md` § Reserve and yield |
 | Chart tree budget | 372 charts, 27 nodes, 7–8 collapses to clear. | `BALANCE.md` § 7, `CONTENT.md` |

@@ -124,7 +124,7 @@ charts across 27 nodes.**
 
 The `≥11` threshold is chosen so the cheapest satisfying set is Deep survey III (11) +
 Phase alignment II (13) + Salvage protocol (14) = 38, putting wormholes at 68 charts all
-in and reachable by the third collapse. The Extraction branch has no node priced between
+in and reachable by the third collapse (~82 charts cumulative). The Extraction branch has no node priced between
 11 and 24, so any higher threshold forces Deep survey IV and delays wormholes a whole
 collapse — see `BALANCE.md` § 7.
 

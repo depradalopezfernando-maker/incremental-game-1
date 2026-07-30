@@ -24,7 +24,7 @@ Each star has:
 | `baseYield` | Units/sec at 100% throttle before upgrades |
 | `tier` | 0–4. Determines ports and buffer capacity. |
 | `throttle` | 0.0–1.0, player-set. Defaults to 1.0 on claim. |
-| `buffer` | `Record<Resource, number>`, current stored material |
+| `buffer` | Stored material per resource — see § 9 on representation |
 | `role` | `none` \| `hub` |
 | `claimed` | Whether the player has connected it |
 
@@ -139,9 +139,17 @@ material spuriously.
 
 ### Delay queues
 
-Each link holds an array of in-transit segments. To bound memory, merge adjacent
-segments with the same resource whose arrival times are within one tick of each
-other. A link should never hold more than a few dozen segments.
+Each link holds an array of in-transit segments, ordered by arrival.
+
+To bound memory, departures are merged into **arrival buckets**: a departure joins the
+open segment for its (direction, resource) when both fall in the same bucket, where a
+bucket is `max(dt, latency / MAX_SEGMENTS_PER_LINK)` wide. That caps a link at a few dozen
+segments per direction per resource, no matter how long the link or how fine the tick.
+
+Merging smears arrival timing by at most one bucket width and never loses material. Note
+the bucket cannot simply be "one tick" — with a fixed step and a fixed latency, every
+consecutive departure would land in the same window and the whole queue would collapse
+into one segment, destroying the delay the queue exists to model.
 
 ### Routing solve
 
@@ -400,15 +408,25 @@ GameState
     hopDistance                 derived, cached, rebuilt on topology change
     upgrades                    k per within-run upgrade track, BALANCE.md § 5
     profiles                    saved routing profiles, once unlocked
-    vented                      Record<Resource, number>, cumulative this run
-    consumedByRecipes           Record<Resource, number>, cumulative this run
-    producedByRecipes           Record<Resource, number>, cumulative this run
+    extracted                   cumulative this run, per resource
+    granted                     material handed over rather than mined — the opening
+                                stockpile and chart-tree starting grants
+    vented                      cumulative this run, per resource
+    consumedByRecipes           cumulative this run, per resource
+    producedByRecipes           cumulative this run, per resource
     coresProduced               lifetime this run, drives the collapse award
 ```
 
-`vented`, `consumedByRecipes` and `producedByRecipes` exist so material can be
-accounted for exactly. See `ROADMAP.md` Phase 1 for the conservation identity they
-satisfy; the arrival summary in `CONTENT.md` needs them too.
+The five ledgers exist so material can be accounted for exactly. See `ROADMAP.md`
+Phase 1 for the conservation identity they satisfy; the arrival summary in `CONTENT.md`
+needs them too.
+
+Per-resource quantities — star buffers and those ledgers — are stored indexed by a fixed
+resource order rather than keyed by name. They are read and written with a *dynamic*
+resource in the tick's hot loops, where a keyed lookup costs 20–50 ns and there are dozens
+per star per tick; the indexed form is what makes a six-hour endurance run fit the suite
+budget. It is a representation choice and nothing more: capacity is still per resource, and
+nothing about the rules changes.
 
 Everything under `run` is regenerated from `seed` and `meta` at collapse. Nothing under
 `meta` is ever recomputed from `run`.

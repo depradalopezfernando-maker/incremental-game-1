@@ -96,8 +96,8 @@ Resulting lifetimes at 100% throttle, no upgrades, run 1:
 | d (lu) | reserve | yield | lifetime |
 |---|---|---|---|
 | 0 | ~900 | 1.00 | ~15 min |
-| 100 | ~2,870 | 1.50 | ~32 min |
-| 250 | ~7,700 | 2.25 | ~57 min |
+| 100 | ~2,850 | 1.50 | ~32 min |
+| 250 | ~7,645 | 2.25 | ~57 min |
 
 This table is **class-neutral** — it omits `classReserveMult` and `classYieldMult`, so
 it describes the shape of the curve rather than any star that actually exists. Every
@@ -106,12 +106,16 @@ real star has a class. The two that matter early:
 | Star | reserve | yield | lifetime |
 |---|---|---|---|
 | Origin M-dwarf, forced | 1,400 | 0.75 | ~31 min |
-| Guaranteed G-type at 60–95 lu | ~1,540–2,410 | ~2.20 | **~12–18 min** |
+| Guaranteed G-type at 60–95 lu | 1,320–2,900 | 2.08–2.36 | **10.6–20.5 min** |
 
-The G-type is the pacing anchor: it is the first star to die, and it lands on § 10's
-`first star runs dry 0:12–0:18` target by construction. The origin and the guaranteed
-rocky remnant both outlive it, so the first depletion the player sees is the bright
-one they were relying on.
+The G-type is the pacing anchor: it is reliably the first star to die, and the origin and
+the guaranteed rocky remnant both outlive it, so the first depletion the player sees is
+the bright one they were relying on.
+
+Its lifetime straddles § 10's `first star runs dry 0:12–0:18` target rather than sitting
+inside it — the spread comes from the 60–95 lu annulus and the `rng(0.8, 1.25)` reserve
+roll, and the tails land at 10.6 and 20.5 minutes. Typical is ~15 min. Narrow the annulus
+or the roll if playtesting says the early tail feels abrupt.
 
 Near stars die inside the first session; far stars survive an hour. This gradient
 *is* the outward pressure. If playtesting says phase 1 feels too frantic, raise the
@@ -173,9 +177,9 @@ Worked examples — a 150 lu trunk:
 | Tier | Cost | Latency |
 |---|---|---|
 | I | 368 metals | 18.8 s |
-| II | 1,288 alloy | 10.7 s |
-| III | 4,415 alloy | 6.8 s |
-| IV | 14,716 alloy | 4.4 s |
+| II | 1,287 alloy | 10.7 s |
+| III | 4,413 alloy | 6.8 s |
+| IV | 14,710 alloy | 4.4 s |
 
 (An earlier version of this table read 389 / 1,362 / 4,670 / 15,566, which is the same
 curve at a coefficient of 0.9515. The formula above is authoritative; the table is
@@ -196,7 +200,7 @@ feels this upgrade rather than just reading a bigger number.
 | 1 | 3 | 700 | 1 | 60 |
 | 2 | 4 | 2,400 | 2 | 204 |
 | 3 | 5 | 8,000 | 3 | 694 |
-| 4 | 7 | 26,000 | 4 | 2,360 |
+| 4 | 7 | 26,000 | 4 | 2,358 |
 
 ```
 nodeUpgradeCost(t) = 60 * 3.4^t        // cost to go from t to t+1
@@ -273,9 +277,12 @@ charts(totalCores) = floor(3 * totalCores^0.55)
 |---|---|
 | 25 | 17 |
 | 60 | 28 |
-| 100 | 39 |
-| 250 | 67 |
-| 500 | 97 |
+| 100 | 37 |
+| 250 | 62 |
+| 500 | 91 |
+
+(An earlier version of this table read 39 / 67 / 97 for the last three rows, which no
+single exponent produces. The formula is authoritative; these are its output.)
 
 The exponent `0.55` is chosen so that pushing a run twice as far yields roughly 1.46×
 the charts — enough that overextending is rewarded, not enough that it's ever correct
@@ -287,7 +294,7 @@ to grind a single run indefinitely. Do not raise it above 0.65.
 
 Full node list in `CONTENT.md`. Budget: **27 nodes, costs 2–45 charts, total 372**,
 so a player is roughly 7–8 collapses from clearing it. Cumulative awards along the § 10
-pacing targets run about 17 / 45 / 84 / 134 / 201 / 281 through collapse 6.
+pacing targets run about 17 / 45 / 82 / 132 / 194 / 271 through collapse 6.
 
 Clearing the tree therefore runs past the "5–6 hours to see everything" line in § 10.
 That is acceptable — the last nodes are refinements, not new problems — but do not
@@ -314,7 +321,7 @@ a first prestige decision.
 **Wormholes cost more than their sticker price.** `CONTENT.md` gates `Folded space`
 behind one node from each branch at cost ≥11, whose cheapest satisfying set is Deep
 survey III (11) + Phase alignment II (13) + Salvage protocol (14) = 38. Wormholes are
-therefore 68 charts of committed spend, against ~84 cumulative by collapse 3 — tight,
+therefore 68 charts of committed spend, against ~82 cumulative by collapse 3 — tight,
 but reachable there, which is what § 10's `~5:30 total` needs.
 
 The threshold is 11 rather than a rounder number because the Extraction branch has no

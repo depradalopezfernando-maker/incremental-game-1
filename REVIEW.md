@@ -373,8 +373,12 @@ Checked and reproduces, listed so these don't get re-litigated:
   it describes no actual star; the origin M-dwarf is 1,400 u at 0.75 u/s = 31 min)
 - All four link latencies (18.8 / 10.7 / 6.8 / 4.4 s at 150 lu) ✓
 - Recipe input demands, and "a core slot needs 0.8 alloy slots and 0.9 catalyst slots" ✓
-- `charts(totalCores) = floor(3·totalCores^0.55)` → 17 / 28 / 39 / 67 / 97 ✓, and the
-  stated 1.46× for double distance ✓
+- `charts(totalCores) = floor(3·totalCores^0.55)` — the stated 1.46× for double distance ✓,
+  but **the award table does not reproduce**: the formula gives 17 / 28 / **37 / 62 / 91**
+  where § 6 claimed 17 / 28 / 39 / 67 / 97. No single exponent produces the doc's last three
+  rows (they imply 0.557, 0.563, 0.559), so the table was hand-made. This review originally
+  passed it as verified, which was wrong; it was caught later by the constants test. The
+  table is now the formula's output, and the § 7 cumulative figures were rebuilt on it.
 - Poisson-disc feasibility: 40 stars at 35 lu separation in a 260 lu radius uses ~25 %
   of hard-core capacity ✓; 124 stars at 800 lu is comfortable ✓
 - Dismantle refund 0.4 ✓ consistent with `Salvage protocol`'s "40 % → 70 %"
@@ -383,10 +387,13 @@ Checked and reproduces, listed so these don't get re-litigated:
 - Isotopes are reachable by 0:50 on the base 130 lu scan range without buying scan
   upgrades (claim a star at ~100 lu, reach to ~230 lu) ✓ — consistent with both the
   140 lu isotope exclusion and "isotopes must feel like a discovery"
-- **The pacing anchor works.** The guaranteed G-type at 60–95 lu has reserve ≈ 1,540–2,406 u
-  at 2.2 u/s → **11.7–18.2 min**, landing precisely on § 10's "first star runs dry
-  0:12–0:18". The origin (31 min) and the rocky remnant (23–36 min) both outlive it. The
-  seed guarantee is doing exactly the authoring job it claims to.
+- **The pacing anchor works, with a wider spread than first stated.** The guaranteed G-type
+  at 60–95 lu is reliably the first star to die, and the origin (31 min) and the rocky
+  remnant both outlive it, so the first depletion is the bright star the player was relying
+  on. Its lifetime is **10.6–20.5 min** across the full annulus and the `rng(0.8, 1.25)`
+  reserve roll, typical ~15 min — it straddles § 10's 0:12–0:18 target rather than sitting
+  inside it. (This review first quoted 11.7–18.2 min, which was the figure for the annulus
+  midpoint only, not the range.)
 - Phase 1's perf budget is achievable: 30 simulated minutes at 10 Hz is 18,000 ticks in
   200 ms ≈ 11 µs/tick for 5 stars. `CLAUDE.md`'s "8 hours under a second" is 3.5 µs/tick
   and the 6-hour CI test tightens it further — both fine for an O(links) solve, but only
@@ -442,6 +449,16 @@ discovering.
 | `ROADMAP.md` | Phase 1 | Per-resource conservation identity with `consumedByRecipes`; new `dt`-independence test | B5, A1 |
 | `ROADMAP.md` | Phase 2 | ±1% assertion scoped above `offlineClosedFormMinSeconds` | D15 |
 | `ROADMAP.md` | Phase 4 | Phase-6 chart nodes rendered locked, not hidden; `yieldMult` named as the 2.6× lever | F, B4 |
+
+A second pass during Phase 1 implementation found four more tables that did not reproduce
+from their own formulas, all now corrected and covered by `src/sim/constants.test.ts`:
+
+| Doc | Was | Is |
+|---|---|---|
+| § 6 chart awards at 100 / 250 / 500 cores | 39 / 67 / 97 | 37 / 62 / 91 |
+| § 2 link cost at 150 lu, tiers II–IV | 1,288 / 4,415 / 14,716 | 1,287 / 4,413 / 14,710 |
+| § 3 node upgrade cost, tier 3→4 | 2,360 | 2,358 |
+| § Reserve and yield, G-type lifetime | ~12–18 min | 10.6–20.5 min |
 
 **One correction to this review's own recommendation.** B3 originally proposed lowering
 the Folded space prerequisite from ≥20 to ≥13. That barely helps: the Extraction branch
