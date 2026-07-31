@@ -16,6 +16,7 @@ import {
   bufferCapacity,
   hubDesignateCost,
   HUB_UNDESIGNATE_REFUND,
+  linkDismantleRefund,
   LINK_COST_CURRENCY,
   MAX_NODE_TIER,
   nodeUpgradeCost,
@@ -25,8 +26,10 @@ import {
 } from './constants';
 import { recomputeTopology } from './flow';
 import {
+  makeRouting,
   RESOURCE_COUNT,
   RESOURCE_INDEX,
+  type LinkId,
   type LinkTier,
   type NodeTier,
   type RecipeId,
@@ -109,9 +112,21 @@ export function held(run: RunState, resource: Resource): number {
   return total;
 }
 
+/** Stars ordered by distance from `nearId`; id breaks ties so spending is deterministic. */
+function byDistanceFrom(run: RunState, nearId: StarId): StarId[] {
+  return run.stars
+    .map((star) => ({ id: star.id, distance: distanceBetween(run, nearId, star.id) }))
+    .sort((a, b) => a.distance - b.distance || a.id - b.id)
+    .map((entry) => entry.id);
+}
+
 /**
  * Debit `amount` of `resource`, nearest to `nearId` first. All-or-nothing: returns false
  * and touches nothing if the network does not hold enough.
+ *
+ * Recorded in `spentOnConstruction`. Without that, building anything would remove material
+ * from buffers with no matching sink and the conservation identity would silently stop
+ * holding — which is exactly what happened before this ledger existed.
  */
 export function spend(
   run: RunState,
@@ -123,32 +138,51 @@ export function spend(
   if (held(run, resource) < amount) return false;
 
   const index = RESOURCE_INDEX[resource];
-  const order = run.stars
-    .filter((star) => star.buffer[index] > 0)
-    .map((star) => ({ id: star.id, distance: distanceBetween(run, nearId, star.id) }))
-    // Distance, then id, so spending is deterministic when two stars are equidistant.
-    .sort((a, b) => a.distance - b.distance || a.id - b.id);
-
   let remaining = amount;
-  for (const entry of order) {
+
+  for (const id of byDistanceFrom(run, nearId)) {
     if (remaining <= 0) break;
-    const buffer = run.stars[entry.id].buffer;
+    const buffer = run.stars[id].buffer;
+    if (buffer[index] <= 0) continue;
     const take = Math.min(buffer[index], remaining);
     buffer[index] -= take;
     remaining -= take;
   }
+
+  run.spentOnConstruction[index] += amount - Math.max(0, remaining);
   return true;
 }
 
+/**
+ * Return `amount` to the network, nearest to `toId` first, filling each buffer only to its
+ * capacity before moving outward.
+ *
+ * Spreading matters: a refund dumped into one full buffer would silently evaporate, and a
+ * dismantle that hands back nothing is worse than one that hands back a little. Anything with
+ * genuinely nowhere to go is vented, because material that cannot be stored is destroyed —
+ * and either way it lands on a ledger so conservation still closes.
+ */
 export function refund(run: RunState, resource: Resource, amount: number, toId: StarId): void {
   if (amount <= 0) return;
   const index = RESOURCE_INDEX[resource];
-  const star = run.stars[toId];
-  const capacity = capacityOfStar(run, toId);
-  const room = capacity - star.buffer[index];
-  // A refund larger than the receiving buffer is capped rather than vented — losing a
-  // refund to overflow would make dismantling feel like a punishment.
-  star.buffer[index] += Math.min(amount, Math.max(0, room));
+  let remaining = amount;
+
+  for (const id of byDistanceFrom(run, toId)) {
+    if (remaining <= 0) break;
+    const star = run.stars[id];
+    if (!star.claimed) continue;
+    const room = capacityOfStar(run, id) - star.buffer[index];
+    if (room <= 0) continue;
+    const place = Math.min(room, remaining);
+    star.buffer[index] += place;
+    remaining -= place;
+  }
+
+  run.granted[index] += amount - remaining;
+  if (remaining > 0) {
+    run.vented[index] += remaining;
+    run.granted[index] += remaining;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -228,6 +262,89 @@ export function buildLink(run: RunState, a: StarId, b: StarId, tier: LinkTier = 
   run.stars[b].claimed = true;
   run.topology = recomputeTopology(run);
   return OK;
+}
+
+/** Material still in flight on a link. Dismantling destroys it, so the UI warns first. */
+export function inTransitOn(run: RunState, linkId: LinkId): number {
+  const link = run.links[linkId];
+  if (link === undefined) return 0;
+  let total = 0;
+  for (let i = link.head; i < link.queue.length; i++) total += link.queue[i].amount;
+  return total;
+}
+
+/**
+ * What dismantling this link hands back.
+ *
+ * Normally 40% — the designed sink that makes topology changes cost something. But when the
+ * network is stranded, the refund is **full**: DESIGN.md is explicit that there is no losing,
+ * and a 40% refund is not enough to climb out of a dead end. Two hydrogen links bought with
+ * the opening stockpile refund about 120 metals against a 187-metal nearest link, which is
+ * still stuck. A partial refund that leaves you exactly as unable to act is not a way out.
+ *
+ * This never affects normal play: a network with income of the currency is never stranded.
+ */
+export function dismantleRefundOf(run: RunState, linkId: LinkId): number {
+  const link = run.links[linkId];
+  if (link === undefined) return 0;
+  const full = buildCost(link.length, link.tier);
+  return isStranded(run) ? full : linkDismantleRefund(link.length, link.tier);
+}
+
+/**
+ * Dismantling refunds a fraction of cost and frees both ports. Anything in transit is lost.
+ *
+ * This is the player's way out of a corner: the opening stockpile is finite and there is no
+ * metals income until a rocky remnant is claimed, so a network that has spent itself into a
+ * dead end needs *some* lever. DESIGN.md is explicit that there is no losing — a state you
+ * cannot act from is broken, not harsh.
+ */
+export function dismantleLink(run: RunState, linkId: LinkId): Outcome {
+  const link = run.links[linkId];
+  if (link === undefined) return no('No such link.');
+
+  // Destroyed, and recorded as such. Material loss always lands on the ledger.
+  for (let i = link.head; i < link.queue.length; i++) {
+    const segment = link.queue[i];
+    run.vented[RESOURCE_INDEX[segment.resource]] += segment.amount;
+  }
+
+  refund(run, linkCurrency(link.tier), dismantleRefundOf(run, linkId), link.a);
+
+  run.links.splice(linkId, 1);
+  // Link ids are array positions, so everything after the hole shifts down. Routing overrides
+  // are keyed by link id and would silently point at the wrong link; drop them on any star
+  // that has them rather than rewriting keys. (Nothing sets overrides before Phase 6.)
+  run.links.forEach((existing, index) => {
+    if (existing.id !== index) (existing as { id: LinkId }).id = index;
+  });
+  for (const star of run.stars) {
+    if (star.routing.some((entry) => entry !== null)) star.routing = makeRouting();
+  }
+
+  run.topology = recomputeTopology(run);
+  return OK;
+}
+
+/**
+ * Whether the player can still act. True when there is no metals income and nothing they can
+ * afford to build — the corner that dismantling exists to get out of.
+ */
+export function isStranded(run: RunState): boolean {
+  for (const star of run.stars) {
+    if (!star.claimed || star.resource !== 'metals') continue;
+    if (star.reserve > 0) return false;
+  }
+
+  for (const star of run.stars) {
+    if (star.claimed) continue;
+    if (!isInScanRange(run, star.id)) continue;
+    for (const other of run.stars) {
+      if (!other.claimed) continue;
+      if (canBuildLink(run, other.id, star.id, 1).ok) return false;
+    }
+  }
+  return true;
 }
 
 // ---------------------------------------------------------------------------

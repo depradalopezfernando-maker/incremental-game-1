@@ -7,8 +7,19 @@
  * and it never goes through React.
  */
 
-import { currentScanRange, distanceBetween, portsTotal, portsUsed } from '../sim/actions';
-import { LINK_BANDWIDTH } from '../sim/constants';
+import {
+  areLinked,
+  canBuildLink,
+  currentScanRange,
+  distanceBetween,
+  freePorts,
+  held,
+  linkBuildCost,
+  linkCurrency,
+  portsTotal,
+  portsUsed,
+} from '../sim/actions';
+import { LINK_BANDWIDTH, linkLatency } from '../sim/constants';
 import { linkThroughput, type FlowScratch } from '../sim/flow';
 import type { GameState, StarClass, StarId } from '../sim/types';
 import { VENT_VISIBLE_SECONDS } from '../app/hud';
@@ -58,6 +69,12 @@ export interface DrawInput {
   readonly dragToScreen: { x: number; y: number } | null;
 }
 
+/** One line of the readout, with whether it should render as a refusal. */
+interface ReadoutLine {
+  readonly text: string;
+  readonly warn: boolean;
+}
+
 export function draw(ctx: CanvasRenderingContext2D, input: DrawInput): void {
   const { camera } = input;
 
@@ -72,8 +89,191 @@ export function draw(ctx: CanvasRenderingContext2D, input: DrawInput): void {
   drawClaimed(ctx, input);
 
   if (camera.zoom >= LABEL_ZOOM) drawLabels(ctx, input);
+  drawReadout(ctx, input);
 
   ctx.restore();
+}
+
+/**
+ * What this action would cost, at the cursor, before it is committed.
+ *
+ * Playtesting found this missing: you could drag a link into existence without ever seeing its
+ * price or what the star on the other end actually holds, and spend an unrecoverable opening
+ * budget on stars that produce the wrong thing. A price you only learn after paying it is not
+ * a decision.
+ */
+function drawReadout(ctx: CanvasRenderingContext2D, input: DrawInput): void {
+  const { state, dragFrom, dragToScreen, hover } = input;
+  const run = state.run;
+
+  let anchor = dragToScreen;
+  let lines: ReadoutLine[] = [];
+
+  if (dragFrom !== null && dragToScreen !== null) {
+    lines = linkReadout(input, dragFrom, hover);
+  } else if (hover !== null && dragFrom === null) {
+    const star = run.stars[hover];
+    anchor = {
+      x: worldToScreenX(input.camera, star.x),
+      y: worldToScreenY(input.camera, star.y) - 14,
+    };
+    lines = starReadout(input, hover);
+  }
+
+  if (anchor === null || lines.length === 0) return;
+
+  ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+
+  const padding = 7;
+  const lineHeight = 15;
+  let width = 0;
+  for (const line of lines) width = Math.max(width, ctx.measureText(line.text).width);
+
+  const boxWidth = width + padding * 2;
+  const boxHeight = lines.length * lineHeight + padding * 2 - 3;
+  // Keep the box on screen when the cursor is near an edge.
+  const x = Math.min(anchor.x + 14, input.camera.width - boxWidth - 4);
+  const y = Math.min(Math.max(4, anchor.y + 14), input.camera.height - boxHeight - 4);
+
+  ctx.fillStyle = 'rgba(6, 9, 15, 0.92)';
+  ctx.strokeStyle = '#1b2230';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.rect(x, y, boxWidth, boxHeight);
+  ctx.fill();
+  ctx.stroke();
+
+  lines.forEach((line, index) => {
+    ctx.fillStyle = line.warn ? '#d8a24a' : index === 0 ? '#dfe6f0' : '#93a0b0';
+    ctx.fillText(line.text, x + padding, y + padding + index * lineHeight);
+  });
+}
+
+function starReadout(input: DrawInput, starId: StarId): ReadoutLine[] {
+  const run = input.state.run;
+  const star = run.stars[starId];
+  const lines: ReadoutLine[] = [
+    { text: star.name, warn: false },
+    { text: describeStar(star), warn: false },
+  ];
+
+  if (star.resource !== null) {
+    const rate = star.baseYield * star.throttle;
+    lines.push({
+      text:
+        star.reserve <= 0
+          ? 'exhausted'
+          : `${formatAmount(star.reserve)} left · ${formatRate(rate)}`,
+      warn: false,
+    });
+  }
+
+  // For a star you do not own, the question is always "what would it cost to reach it".
+  if (!star.claimed) {
+    const best = cheapestConnection(run, starId);
+    if (best === null) {
+      lines.push({ text: 'no route — out of range or no free ports', warn: true });
+    } else {
+      const currency = linkCurrency(1);
+      const affordable = held(run, currency) >= best.cost;
+      lines.push({
+        text: `link from ${run.stars[best.from].name}: ${Math.ceil(best.cost)} ${currency}`,
+        warn: !affordable,
+      });
+      if (!affordable) {
+        lines.push({ text: `holding ${Math.floor(held(run, currency))}`, warn: true });
+      }
+    }
+  }
+
+  return lines;
+}
+
+function linkReadout(
+  input: DrawInput,
+  from: StarId,
+  target: StarId | null,
+): ReadoutLine[] {
+  const run = input.state.run;
+
+  if (target === null || target === from) {
+    return [{ text: `link from ${run.stars[from].name}`, warn: false }, { text: 'release on a star', warn: false }];
+  }
+
+  const to = run.stars[target];
+  const cost = linkBuildCost(run, from, target, 1);
+  const currency = linkCurrency(1);
+  const check = canBuildLink(run, from, target, 1);
+
+  const lines: ReadoutLine[] = [
+    { text: `${run.stars[from].name} → ${to.name}`, warn: false },
+    { text: describeStar(to), warn: false },
+    {
+      text: `${Math.round(distanceBetween(run, from, target))} lu · ${linkLatency(
+        distanceBetween(run, from, target),
+        1,
+      ).toFixed(1)}s`,
+      warn: false,
+    },
+    {
+      text: `${Math.ceil(cost)} ${currency} · holding ${Math.floor(held(run, currency))}`,
+      warn: !check.ok,
+    },
+  ];
+
+  if (!check.ok) lines.push({ text: check.reason, warn: true });
+  return lines;
+}
+
+function describeStar(star: GameState['run']['stars'][number]): string {
+  const cls = CLASS_NAME[star.cls];
+  if (star.resource === null) return cls;
+  return `${cls} · ${star.resource}`;
+}
+
+/** The cheapest tier-I link that could reach this star from the existing network. */
+function cheapestConnection(
+  run: GameState['run'],
+  starId: StarId,
+): { from: StarId; cost: number } | null {
+  let best: { from: StarId; cost: number } | null = null;
+  for (const other of run.stars) {
+    if (!other.claimed) continue;
+    if (!canReach(run, other.id, starId)) continue;
+    const cost = linkBuildCost(run, other.id, starId, 1);
+    if (best === null || cost < best.cost) best = { from: other.id, cost };
+  }
+  return best;
+}
+
+/** Range and ports only — affordability is reported separately so the price still shows. */
+function canReach(run: GameState['run'], from: StarId, to: StarId): boolean {
+  if (distanceBetween(run, from, to) > currentScanRange(run)) return false;
+  if (freePorts(run, from) <= 0 || freePorts(run, to) <= 0) return false;
+  return !areLinked(run, from, to);
+}
+
+const CLASS_NAME: Record<StarClass, string> = {
+  mdwarf: 'M-dwarf',
+  gtype: 'G-type',
+  rocky: 'rocky remnant',
+  heavy: 'heavy remnant',
+  neutron: 'neutron star',
+  binary: 'binary',
+  anchor: 'wormhole anchor',
+};
+
+function formatAmount(value: number): string {
+  if (value >= 10000) return `${(value / 1000).toFixed(1)}K`;
+  if (value >= 10) return String(Math.round(value));
+  return value.toFixed(1);
+}
+
+function formatRate(value: number): string {
+  if (value < 0.005) return 'idle';
+  return `${value < 10 ? value.toFixed(2) : value.toFixed(1)}/s`;
 }
 
 /**

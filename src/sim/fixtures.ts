@@ -103,6 +103,7 @@ export function buildNetwork(stars: readonly StarSpec[], links: readonly LinkSpe
     vented: makeVector(),
     consumedByRecipes: makeVector(),
     producedByRecipes: makeVector(),
+    spentOnConstruction: makeVector(),
     coresProduced: 0,
   };
   run.topology = recomputeTopology(run);
@@ -272,6 +273,11 @@ export function loneHub(): GameState {
 export function spanningTreeCluster(seed: number): GameState {
   const state = newGame(seed);
   const run = state.run;
+
+  // A fresh game ships its refinery stopped, so a player has to start it. This fixture stands
+  // in for a network someone has actually been running, so start it here.
+  for (const slot of run.stars[0].slots) slot.recipe = 'alloy';
+
   const connected: number[] = [0];
 
   for (let id = 1; id < run.stars.length; id++) {

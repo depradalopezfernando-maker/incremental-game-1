@@ -95,6 +95,16 @@ network suddenly feel responsive, and that should be the reward the player chase
 Dismantling refunds a fraction of cost and frees both ports. Any material in transit
 on that link is **lost**. Warn the player if in-transit amount exceeds a threshold.
 
+**A stranded network refunds in full.** If the player has no income of a build currency and
+cannot afford anything, dismantling returns the whole build cost rather than the usual
+fraction. `DESIGN.md` promises there is no losing, and a state you can never act from is
+losing, not harshness — the partial refund is a sink for ordinary play, not a trap door.
+
+This never fires while the network is producing: having income of the currency is enough to
+count as un-stranded. Playtesting reached the dead end for real — the opening stockpile spent
+on stars that produce the wrong thing, no metals source claimed, and a 40% refund short of the
+cheapest remaining link.
+
 ---
 
 ## 3. Flow model

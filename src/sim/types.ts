@@ -277,6 +277,14 @@ export interface RunState {
   vented: ResourceVector;
   consumedByRecipes: ResourceVector;
   producedByRecipes: ResourceVector;
+  /**
+   * Material consumed by construction — links, node tiers, hub designations.
+   *
+   * Spending removes material from buffers, so without a ledger for it the conservation
+   * identity fails the moment the player builds anything. Refunds come back through
+   * `granted`, which is what that ledger is for.
+   */
+  spentOnConstruction: ResourceVector;
   coresProduced: number;
 }
 

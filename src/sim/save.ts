@@ -105,6 +105,7 @@ export interface SavedGame {
     vented: number[];
     consumedByRecipes: number[];
     producedByRecipes: number[];
+    spentOnConstruction: number[];
     coresProduced: number;
   };
 }
@@ -143,6 +144,7 @@ export function serialize(state: GameState, savedAt: number = Date.now()): Saved
       vented: [...run.vented],
       consumedByRecipes: [...run.consumedByRecipes],
       producedByRecipes: [...run.producedByRecipes],
+      spentOnConstruction: [...run.spentOnConstruction],
       coresProduced: run.coresProduced,
     },
   };
@@ -274,6 +276,7 @@ export function deserialize(raw: unknown): GameState {
     vented: vectorFrom(save.run.vented),
     consumedByRecipes: vectorFrom(save.run.consumedByRecipes),
     producedByRecipes: vectorFrom(save.run.producedByRecipes),
+    spentOnConstruction: vectorFrom(save.run.spentOnConstruction ?? new Array(RESOURCE_COUNT).fill(0)),
     coresProduced: save.run.coresProduced,
   };
 

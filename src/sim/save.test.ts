@@ -39,6 +39,7 @@ function fingerprint(state: GameState) {
     vented: toAmounts(state.run.vented),
     consumed: toAmounts(state.run.consumedByRecipes),
     produced: toAmounts(state.run.producedByRecipes),
+    spent: toAmounts(state.run.spentOnConstruction),
     stars: state.run.stars.map((star) => ({
       id: star.id,
       x: star.x,

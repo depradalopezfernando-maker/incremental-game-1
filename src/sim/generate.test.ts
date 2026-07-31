@@ -152,12 +152,16 @@ describe('the opening state', () => {
     expect(state.run.extracted[RESOURCE_INDEX.metals]).toBe(0);
   });
 
-  test('starts with one alloy slot, no links, and only alloy unlocked', () => {
+  test('starts with one recipe slot, stopped, no links, and only alloy unlocked', () => {
     const state = newGame(20260730);
     expect(state.run.links).toHaveLength(0);
     expect(state.run.stars[0].slots).toHaveLength(1);
-    expect(state.run.stars[0].slots[0].recipe).toBe('alloy');
     expect(state.meta.recipesUnlocked).toEqual(['alloy']);
+
+    // Stopped on purpose. A running refinery consumes the opening 300 metals at 0.75/s, and
+    // since tier-I links are paid in metals with no metals income until a rocky remnant is
+    // claimed, that can leave the player unable to act. Playtesting hit it.
+    expect(state.run.stars[0].slots[0].recipe).toBeNull();
   });
 
   test('leaves every star but the origin unclaimed', () => {

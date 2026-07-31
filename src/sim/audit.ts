@@ -53,13 +53,15 @@ export interface ConservationReport {
 }
 
 /**
- * ROADMAP.md Phase 1:
+ * ROADMAP.md Phase 1, extended for construction:
  *
  *   extracted[r] + granted[r]
  *     === inBuffers[r] + inTransit[r] + vented[r] + consumedByRecipes[r]
+ *         + spentOnConstruction[r]
  *
- * Per raw resource — refining destroys its inputs, so the identity needs that last term.
- * `granted` covers material the player was handed rather than mined.
+ * Per raw resource. Refining destroys its inputs and construction consumes material, so the
+ * identity needs both sinks. `granted` covers material the player was handed rather than
+ * mined — the opening stockpile, chart-tree grants, and dismantle refunds.
  */
 export function conservation(run: RunState): ConservationReport[] {
   const buffers = networkTotals(run);
@@ -71,7 +73,8 @@ export function conservation(run: RunState): ConservationReport[] {
       buffers[resource] +
       transit[resource] +
       amountOf(run.vented, resource) +
-      amountOf(run.consumedByRecipes, resource);
+      amountOf(run.consumedByRecipes, resource) +
+      amountOf(run.spentOnConstruction, resource);
     return { resource, supplied, accounted, residual: supplied - accounted };
   });
 }

@@ -6,14 +6,19 @@
  * so, and a reserve shows its time to empty.
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   canDesignateHub,
   canUndesignateHub,
   canUpgradeNode,
   capacityOfStar,
   designateHub,
+  dismantleLink,
+  dismantleRefundOf,
   held,
+  inTransitOn,
+  isStranded,
+  linkCurrency,
   hubDesignateCostOf,
   nodeUpgradeCostOf,
   portsTotal,
@@ -365,6 +370,54 @@ function LinkPanel({ state, linkId }: { state: GameState; linkId: number }): JSX
           </div>
         )}
       </div>
+
+      <Dismantle state={state} linkId={link.id} />
+    </div>
+  );
+}
+
+/**
+ * Dismantling, with the warning inline rather than in a dialog.
+ *
+ * UI.md allows no modals during play — the collapse confirmation is the only exception — so a
+ * dismantle that would destroy material in flight arms itself on the first click and commits
+ * on the second, saying exactly what it will cost in between.
+ */
+function Dismantle({ state, linkId }: { state: GameState; linkId: number }): JSX.Element {
+  const run = state.run;
+  const link = run.links[linkId];
+  const [armed, setArmed] = useState(false);
+
+  const lost = inTransitOn(run, linkId);
+  const refundValue = dismantleRefundOf(run, linkId);
+  const currency = linkCurrency(link.tier);
+  const needsWarning = lost > 0.5;
+
+  return (
+    <div className={styles.section}>
+      <Action
+        label={armed ? 'Confirm — dismantle' : 'Dismantle link'}
+        cost={`+${amount(refundValue)} ${currency}`}
+        outcome={{ ok: true }}
+        onClick={() => {
+          if (needsWarning && !armed) {
+            setArmed(true);
+            return;
+          }
+          dismantleLink(run, linkId);
+          ui.select({ kind: 'none' });
+          ui.notify(`Link dismantled. ${amount(refundValue)} ${currency} recovered, 2 ports freed.`);
+          ui.worldChanged();
+        }}
+      />
+      {needsWarning && (
+        <p className={armed ? styles.venting : styles.empty}>
+          {amount(lost)} in flight will be destroyed.
+        </p>
+      )}
+      {isStranded(run) && (
+        <p className={styles.slotStatus}>Refunded in full — the network has nothing left to build with.</p>
+      )}
     </div>
   );
 }
@@ -374,6 +427,17 @@ function LinkPanel({ state, linkId }: { state: GameState; linkId: number }): JSX
 function NetworkPanel({ state }: { state: GameState }): JSX.Element {
   const snapshot = useUi((store) => store.snapshot);
   const summary = snapshot.summary;
+  const stranded = isStranded(state.run);
+
+  // A hub with nothing assigned produces nothing, and the origin ships that way on purpose —
+  // so point at it rather than leaving the player to wonder why alloy never appears.
+  const idleHub = state.run.stars.find(
+    (star) => star.claimed && star.role === 'hub' && star.slots.some((slot) => slot.recipe === null),
+  );
+  const stalledHint =
+    idleHub === undefined
+      ? null
+      : `${idleHub.name} has a stopped refinery slot. Select it to choose a recipe.`;
 
   return (
     <div>
@@ -400,9 +464,17 @@ function NetworkPanel({ state }: { state: GameState }): JSX.Element {
         </div>
       </div>
 
+      {stalledHint !== null && <p className={styles.stalled}>{stalledHint}</p>}
+      {stranded && (
+        <p className={styles.venting}>
+          No metals income and nothing affordable to build. Select a link and dismantle it to
+          recover material and free its ports.
+        </p>
+      )}
+
       <p className={styles.empty}>
         Click a star or a link to inspect it. Drag from a claimed star to an unclaimed one to
-        build a link.
+        build a link. Hover anything to see what it holds and what it would cost.
       </p>
     </div>
   );

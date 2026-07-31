@@ -6,6 +6,7 @@
  */
 
 import { describe, expect, test } from 'vitest';
+import { conservation, findNonFinite } from './audit';
 import {
   buildLink,
   canBuildLink,
@@ -13,8 +14,13 @@ import {
   canUndesignateHub,
   canUpgradeNode,
   currentScanRange,
+  capacityOfStar,
   designateHub,
+  dismantleLink,
+  dismantleRefundOf,
   freePorts,
+  inTransitOn,
+  isStranded,
   held,
   hubDesignateCostOf,
   linkBuildCost,
@@ -315,6 +321,7 @@ describe('throttle and slots', () => {
    */
   test('a slot can be stopped, and stops consuming', () => {
     const state = opening();
+    setSlotRecipe(state.run, 0, 0, 'alloy');
     run(state, 20, SIM_STEP_SECONDS);
     expect(held(state.run, 'alloy')).toBeGreaterThan(0);
 
@@ -335,5 +342,196 @@ describe('throttle and slots', () => {
     setSlotRecipe(state.run, 0, 0, 'alloy');
     run(state, 10, SIM_STEP_SECONDS);
     expect(held(state.run, 'alloy')).toBeGreaterThan(0);
+  });
+});
+
+describe('dismantling', () => {
+  test('refunds, frees ports, and reindexes cleanly', () => {
+    const state = opening();
+    const first = nearestUnclaimed(state);
+    buildLink(state.run, 0, first, 1);
+    const second = nearestUnclaimed(state);
+    buildLink(state.run, 0, second, 1);
+    expect(state.run.links).toHaveLength(2);
+    expect(held(state.run, 'metals')).toBeLessThan(INITIAL_METALS);
+
+    const portsBefore = freePorts(state.run, 0);
+    const metalsBefore = held(state.run, 'metals');
+    const refund = dismantleRefundOf(state.run, 0);
+
+    expect(dismantleLink(state.run, 0).ok).toBe(true);
+
+    expect(state.run.links).toHaveLength(1);
+    // Ids are positions, so the survivor must have been renumbered to 0.
+    expect(state.run.links[0].id).toBe(0);
+    expect(freePorts(state.run, 0)).toBe(portsBefore + 1);
+    expect(held(state.run, 'metals')).toBeCloseTo(metalsBefore + refund, 6);
+    expect(state.run.topology.adjacency[first]).toHaveLength(0);
+  });
+
+  test('material in flight is destroyed and recorded, not quietly dropped', () => {
+    const state = opening();
+    const target = nearestUnclaimed(state);
+    buildLink(state.run, 0, target, 1);
+    run(state, 30, SIM_STEP_SECONDS);
+
+    const inFlight = inTransitOn(state.run, 0);
+    expect(inFlight).toBeGreaterThan(0);
+    const ventedBefore = state.run.vented[RESOURCE_INDEX.hydrogen];
+
+    dismantleLink(state.run, 0);
+
+    // Lost, but on the ledger — conservation still has to close.
+    expect(state.run.vented[RESOURCE_INDEX.hydrogen]).toBeGreaterThan(ventedBefore);
+    for (const report of conservation(state.run)) {
+      expect(Math.abs(report.residual) / Math.max(1, report.supplied)).toBeLessThan(1e-9);
+    }
+  });
+
+  test('the simulation keeps running after a dismantle', () => {
+    const state = opening();
+    buildLink(state.run, 0, nearestUnclaimed(state), 1);
+    buildLink(state.run, 0, nearestUnclaimed(state), 1);
+    run(state, 20, SIM_STEP_SECONDS);
+    dismantleLink(state.run, 0);
+    run(state, 60, SIM_STEP_SECONDS);
+
+    expect(findNonFinite(state.run)).toBeNull();
+  });
+});
+
+describe('the opening cannot silently strand the player', () => {
+  /**
+   * The failure playtesting hit: the origin's refinery ate the opening 300 metals while the
+   * player looked around, and with no metals income and no affordable link there was nothing
+   * left to do.
+   */
+  test('the origin refinery ships stopped, so metals do not drain on their own', () => {
+    const state = opening();
+    expect(state.run.stars[0].slots[0].recipe).toBeNull();
+
+    run(state, 10 * 60, SIM_STEP_SECONDS);
+
+    expect(held(state.run, 'metals')).toBe(INITIAL_METALS);
+    expect(held(state.run, 'alloy')).toBe(0);
+  });
+
+  test('a fresh game is not stranded', () => {
+    expect(isStranded(opening().run)).toBe(false);
+  });
+
+  /**
+   * The reported session: spend the opening stockpile on hydrogen stars, claim no metals
+   * source, and end up unable to build anything. Across many seeds, at least some strand —
+   * and every one of them has to be recoverable, because DESIGN.md says there is no losing.
+   */
+  test('spending everything on the wrong stars is always recoverable', () => {
+    let strandedSeeds = 0;
+
+    for (let seed = 1; seed <= 60; seed++) {
+      const state = newGame(seed * 104729);
+
+      const hydrogen = state.run.stars
+        .filter((s) => !s.claimed && s.resource === 'hydrogen')
+        .map((s) => s.id);
+      for (const id of hydrogen) buildLink(state.run, 0, id, 1);
+
+      if (!isStranded(state.run)) continue;
+      strandedSeeds++;
+
+      // Dismantling has to climb back out, not merely soften the fall.
+      while (state.run.links.length > 0 && isStranded(state.run)) {
+        dismantleLink(state.run, state.run.links.length - 1);
+      }
+      expect(isStranded(state.run)).toBe(false);
+
+      // And the material is still accounted for afterwards.
+      for (const report of conservation(state.run)) {
+        expect(Math.abs(report.residual) / Math.max(1, report.supplied)).toBeLessThan(1e-9);
+      }
+    }
+
+    // If no seed ever stranded, the test proves nothing — say so rather than passing quietly.
+    expect(strandedSeeds).toBeGreaterThan(0);
+  });
+
+  test('a stranded network refunds dismantles in full, an unstranded one does not', () => {
+    const healthy = opening();
+    const target = nearestUnclaimed(healthy);
+    buildLink(healthy.run, 0, target, 1);
+    const full = linkBuildCost(healthy.run, 0, target, 1);
+    // Metals still in hand and a rocky remnant reachable, so this is the normal 40%.
+    expect(isStranded(healthy.run)).toBe(false);
+    expect(dismantleRefundOf(healthy.run, 0)).toBeCloseTo(full * 0.4, 6);
+  });
+});
+
+/**
+ * The invariant the whole project is built on, across the actions that move material without
+ * the tick's involvement. This is the test that was missing: `spend` removed material from
+ * buffers with no matching sink, so every purchase quietly broke conservation and nothing
+ * noticed, because no test built something and then checked.
+ */
+describe('construction keeps material accounted for', () => {
+  function assertConserved(state: GameState): void {
+    for (const report of conservation(state.run)) {
+      const scale = Math.max(1, report.supplied);
+      expect(Math.abs(report.residual) / scale).toBeLessThan(1e-9);
+    }
+  }
+
+  test('after building a link', () => {
+    const state = opening();
+    buildLink(state.run, 0, nearestUnclaimed(state), 1);
+    assertConserved(state);
+    expect(state.run.spentOnConstruction[RESOURCE_INDEX.metals]).toBeGreaterThan(0);
+  });
+
+  test('after building, running, and dismantling', () => {
+    const state = opening();
+    setSlotRecipe(state.run, 0, 0, 'alloy');
+    buildLink(state.run, 0, nearestUnclaimed(state), 1);
+    run(state, 120, SIM_STEP_SECONDS);
+    assertConserved(state);
+
+    dismantleLink(state.run, 0);
+    assertConserved(state);
+
+    run(state, 120, SIM_STEP_SECONDS);
+    assertConserved(state);
+  });
+
+  test('after a node upgrade and a hub designation', () => {
+    const state = opening();
+    const target = nearestUnclaimed(state);
+    buildLink(state.run, 0, target, 1);
+    setAmount(state.run.stars[0].buffer, 'alloy', 600);
+    // Injected alloy is not on any ledger, so account for it as a grant to keep the identity
+    // meaningful — the point of the test is the actions, not the injection.
+    state.run.granted[RESOURCE_INDEX.alloy] += 600;
+
+    upgradeNode(state.run, 0);
+    designateHub(state.run, target);
+    assertConserved(state);
+  });
+
+  test('a refund with nowhere to go is vented rather than vanishing', () => {
+    const state = opening();
+    const target = nearestUnclaimed(state);
+    buildLink(state.run, 0, target, 1);
+
+    // Fill every buffer to capacity so the refund cannot be stored anywhere.
+    for (const star of state.run.stars) {
+      const capacity = capacityOfStar(state.run, star.id);
+      const before = star.buffer[RESOURCE_INDEX.metals];
+      setAmount(star.buffer, 'metals', capacity);
+      state.run.granted[RESOURCE_INDEX.metals] += capacity - before;
+    }
+
+    const ventedBefore = state.run.vented[RESOURCE_INDEX.metals];
+    dismantleLink(state.run, 0);
+
+    expect(state.run.vented[RESOURCE_INDEX.metals]).toBeGreaterThan(ventedBefore);
+    assertConserved(state);
   });
 });

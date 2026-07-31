@@ -80,9 +80,22 @@ stop the refinery, which removes the lock. But the tension is real and probably 
 adjacent rather than deliberate — § 10 says `first alloy produced 0:14`, and in practice it is
 0:00 because the metals are already in hand.
 
-**Default taken:** the slot ships running, with a control to stop it. Options if playtesting
-says the opening reads badly: ship the slot stopped, or drop the opening grant to ~200 metals
-and let the first alloy wait for the rocky remnant, which is what the 0:14 target implies.
+**Resolved by playtesting.** The dead end was reached for real. Three changes:
+
+- The origin's slot now ships **stopped**, so the opening stockpile cannot drain while the
+  player is still looking around. This also matches § 10's `first alloy produced 0:14`, which
+  only makes sense if refining waits for metals to arrive.
+- Hovering or dragging shows what a star holds and what a link would cost *before* committing.
+  The trap was largely an information problem: you could spend an unrecoverable budget without
+  ever seeing the price.
+- Dismantling refunds **in full** when the network is stranded — see `MECHANICS.md`
+  § Dismantling.
+
+Still worth your call: whether the opening grant of 300 metals is simply too tight. It buys
+roughly one or two links, and the guaranteed rocky remnant can cost up to 186 of it. Raising it
+to ~450 would give the opening slack without changing any curve. `BALANCE.md` invites exactly
+this — "treat the pacing targets in § 10 as the spec and the constants as the current best
+guess at hitting them".
 
 ---
 
@@ -118,3 +131,6 @@ and let the first alloy wait for the rocky remnant, which is what the 0:14 targe
 | Do new hub slots start assigned? | Yes, to `alloy` — the only recipe unlocked when the first hubs are bought, and an unassigned slot does nothing. Explicit assignment is Phase 4. | `sim/actions.ts` |
 | How does React see a simulation that mutates in place? | It doesn't. The loop publishes a HUD snapshot at 5 Hz into Zustand; the canvas reads live state every frame and never re-renders through React. | `app/hud.ts`, `app/store.ts` |
 | Are unclaimed stars drawn in class colour? | Yes, dim and small. A uniform grey dot makes every expansion decision blind. | `render/map.ts` |
+| Does spending need a ledger? | Yes — `spentOnConstruction`. Without it every purchase silently broke the conservation identity, since `spend` removed material from buffers with no matching sink. | `sim/types.ts`, `sim/audit.ts` |
+| What happens to a refund with nowhere to go? | Spread nearest-first into buffers with room; anything still homeless is vented and recorded. A refund that evaporates makes dismantling feel like a punishment. | `sim/actions.ts` |
+| How is an irreversible action confirmed? | An in-page two-step button, never a modal — UI.md allows no modals during play except the collapse confirmation. | `ui/Inspector.tsx` |

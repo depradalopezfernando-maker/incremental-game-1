@@ -278,11 +278,15 @@ export function generateRun(seed: number, collapseCount: number): RunState {
     });
   }
 
-  // The player starts with the origin claimed, tier 1, designated as a hub, with one
-  // alloy recipe slot, and no links.
+  // The player starts with the origin claimed, tier 1, designated as a hub, with one alloy
+  // recipe slot, and no links.
+  //
+  // The slot ships **stopped**. Running it from t=0 quietly eats the opening 300 metals at
+  // 0.75/s — and since tier-I links are paid in metals and the only metals source is a rocky
+  // remnant you must spend metals to claim, a player who explores before building can be left
+  // unable to act at all. Playtesting hit exactly that. BALANCE.md § 10 also expects first
+  // alloy at 0:14, which only makes sense if refining waits for metals to actually arrive.
   const origin = stars[0];
-  const firstSlot = origin.slots[0];
-  if (firstSlot !== undefined) firstSlot.recipe = 'alloy';
 
   const granted = makeVector();
   setAmount(granted, 'metals', INITIAL_METALS);
@@ -302,6 +306,7 @@ export function generateRun(seed: number, collapseCount: number): RunState {
     vented: makeVector(),
     consumedByRecipes: makeVector(),
     producedByRecipes: makeVector(),
+    spentOnConstruction: makeVector(),
     coresProduced: 0,
   };
 
