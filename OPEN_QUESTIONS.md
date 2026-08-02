@@ -91,11 +91,11 @@ adjacent rather than deliberate — § 10 says `first alloy produced 0:14`, and 
 - Dismantling refunds **in full** when the network is stranded — see `MECHANICS.md`
   § Dismantling.
 
-Still worth your call: whether the opening grant of 300 metals is simply too tight. It buys
-roughly one or two links, and the guaranteed rocky remnant can cost up to 186 of it. Raising it
-to ~450 would give the opening slack without changing any curve. `BALANCE.md` invites exactly
-this — "treat the pacing targets in § 10 as the spec and the constants as the current best
-guess at hitting them".
+The opening grant is now **450 metals**, raised from 300 at the project owner's direction. 300
+bought roughly one or two links against a guaranteed rocky remnant costing up to 186, which left
+no room to misplay the opening. No curve changed — only the constant, which is what
+`BALANCE.md` invites: "treat the pacing targets in § 10 as the spec and the constants as the
+current best guess at hitting them".
 
 ---
 

@@ -37,7 +37,7 @@ npm run preview # serve the production build
 | Inspect | click a star or a link |
 | Build a link | drag from one of *your* stars to another star |
 
-You start with one star — the origin, an M-dwarf, already a hub — and 300 metals. Unclaimed
+You start with one star — the origin, an M-dwarf, already a hub — and 450 metals. Unclaimed
 stars inside scan range are drawn dim and small in their class colour; everything further out
 is invisible until you expand toward it.
 
@@ -47,11 +47,9 @@ The first things worth doing:
    Watch the strip under the map — a refused build says exactly why.
 2. **Find the rocky remnant** (dull grey-brown). It is your only source of metals, and metals
    are what tier-I links are paid in.
-3. **Watch your metals.** The origin's alloy refinery is running from the start and eats
-   0.75 metals/s. If you spend the opening 300 on links and let the refinery have the rest,
-   you can strand yourself — select the origin and set its recipe slot to `stopped` if you
-   want to hold metals for building. This tension is a known open question, see
-   `OPEN_QUESTIONS.md` § 6.
+3. **Start the refinery when you have metals coming in.** The origin's recipe slot ships
+   stopped on purpose — running it consumes the same metals your links are paid in. Select the
+   origin and pick `alloy` once a rocky remnant is feeding you.
 4. **Watch the bright yellow-white star.** The generator guarantees a G-type 60–95 lu out. It
    is the richest thing near you and it dies in roughly 10–20 minutes. That first depletion is
    meant to be the moment the game turns.

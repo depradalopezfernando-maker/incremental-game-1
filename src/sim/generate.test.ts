@@ -140,7 +140,7 @@ describe('seed guarantees, across 120 seeds', () => {
 });
 
 describe('the opening state', () => {
-  test('grants 300 metals into the origin buffer and nothing else', () => {
+  test('grants the opening metals into the origin buffer and nothing else', () => {
     const state = newGame(20260730);
     const origin = state.run.stars[0];
 
@@ -158,7 +158,7 @@ describe('the opening state', () => {
     expect(state.run.stars[0].slots).toHaveLength(1);
     expect(state.meta.recipesUnlocked).toEqual(['alloy']);
 
-    // Stopped on purpose. A running refinery consumes the opening 300 metals at 0.75/s, and
+    // Stopped on purpose. A running refinery consumes the opening stockpile at 0.75/s, and
     // since tier-I links are paid in metals with no metals income until a rocky remnant is
     // claimed, that can leave the player unable to act. Playtesting hit it.
     expect(state.run.stars[0].slots[0].recipe).toBeNull();

@@ -281,7 +281,7 @@ export function generateRun(seed: number, collapseCount: number): RunState {
   // The player starts with the origin claimed, tier 1, designated as a hub, with one alloy
   // recipe slot, and no links.
   //
-  // The slot ships **stopped**. Running it from t=0 quietly eats the opening 300 metals at
+  // The slot ships **stopped**. Running it from t=0 quietly eats the opening stockpile at
   // 0.75/s — and since tier-I links are paid in metals and the only metals source is a rocky
   // remnant you must spend metals to claim, a player who explores before building can be left
   // unable to act at all. Playtesting hit exactly that. BALANCE.md § 10 also expects first

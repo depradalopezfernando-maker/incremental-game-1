@@ -252,10 +252,9 @@ function StarPanel({ state, star }: { state: GameState; star: Star }): JSX.Eleme
 /**
  * Slot assignment, including the ability to stop a slot.
  *
- * Stopping matters more than it looks: the opening 300 metals is both the link budget and the
+ * Stopping matters more than it looks: the opening stockpile is both the link budget and the
  * alloy refinery's feedstock, and a slot left running eats the metals the player needs for
- * their first link. Without a way to turn it off, dawdling for four minutes leaves you unable
- * to build anything and unable to mine more metals — see OPEN_QUESTIONS.md.
+ * their first link. The origin now ships stopped for that reason — see OPEN_QUESTIONS.md § 6.
  */
 function Slots({ state, star }: { state: GameState; star: Star }): JSX.Element {
   const unlocked = state.meta.recipesUnlocked;

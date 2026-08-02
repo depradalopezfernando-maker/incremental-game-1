@@ -503,8 +503,16 @@ export function scanRangeCost(k: number): number {
   return 70 * Math.pow(1.75, k);
 }
 
-/** Initial stockpile: 300 metals, 0 everything else. Held in the origin's buffer. */
-export const INITIAL_METALS = 300;
+/**
+ * Initial stockpile: 450 metals, 0 everything else. Held in the origin's buffer.
+ *
+ * Raised from 300 after playtesting. At 300 the opening bought roughly one or two links, and
+ * the guaranteed rocky remnant can cost up to 186 of it — so a player who spent on the wrong
+ * stars first could end up with no metals, no metals income, and nothing affordable. 450 gives
+ * the opening enough slack to make a mistake and recover from it by playing rather than by
+ * dismantling.
+ */
+export const INITIAL_METALS = 450;
 
 // ---------------------------------------------------------------------------
 // § 6 Collapse

@@ -170,7 +170,12 @@ buildCost(len, tier) = 0.9 * len^1.2 * tierCostMult[tier]
 latency(len, tier)   = len / tierSpeed[tier]
 upgradeCost(a → b)   = (buildCost(len,b) - buildCost(len,a)) * 1.25
 dismantleRefund      = 0.4 * buildCost(len, currentTier)
+                     = 1.0 * buildCost(...)  when the network is stranded
 ```
+
+The full refund is the "no losing" floor, not a balance lever — see `MECHANICS.md`
+§ Dismantling. It cannot fire while the network has income of the currency, so it never
+touches ordinary play.
 
 Worked examples — a 150 lu trunk:
 
@@ -260,9 +265,20 @@ bufferMult(k)        = 1.6^k               cost: 120 * 2.1^k  catalyst
 scanRange(k)         = 130 + 34*k   (lu)   cost: 70 * 1.75^k  catalyst
 ```
 
-Initial scan range: **130 lu**. Initial stockpile: **300 metals, 0 everything else**.
+Initial scan range: **130 lu**. Initial stockpile: **450 metals, 0 everything else**.
 Player starts with the origin star claimed, tier 1, designated as a hub, with one
-alloy recipe slot, and no links.
+alloy recipe slot **stopped**, and no links.
+
+Two changes here came out of playtesting the vertical slice:
+
+- The stockpile was 300. That buys roughly one or two links, and the guaranteed rocky remnant
+  can cost up to 186 of it, so spending on the wrong stars first could leave a player with no
+  metals, no metals income, and nothing affordable. 450 leaves room to misplay the opening and
+  still recover by playing.
+- The alloy slot ships stopped. Running it from `t = 0` consumes the opening stockpile at
+  0.75 metals/s — the same metals tier-I links are paid in — which drained the budget while the
+  player was still looking around. It also makes § 10's `first alloy produced 0:14` true rather
+  than 0:00.
 
 ---
 
