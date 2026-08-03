@@ -24,11 +24,25 @@ No UI. No canvas. Nothing on screen.
 **Acceptance:**
 - A test builds a fixed 5-star network, runs 30 simulated minutes in under 200ms,
   and asserts exact stockpile values
-- A test asserts material is conserved: `extracted == delivered + inTransit + vented`
-  to within floating-point tolerance
+- A test asserts material is conserved, per raw resource:
+  `extracted[r] == inBuffers[r] + inTransit[r] + vented[r] + consumedByRecipes[r]`
+  to within floating-point tolerance. Refining destroys its inputs, so the identity
+  needs that last term — without it the assertion fails the moment a hub runs.
 - A test asserts a saturated trunk degrades all flows on it proportionally
-- A test asserts a hub with 2 of 3 inputs stalls and does not consume
-- Same seed produces byte-identical clusters across runs
+- A test asserts a hub holding some but not all of a recipe's inputs stalls, consumes
+  nothing, and names every missing input (no recipe has three inputs — the alloy and
+  catalyst recipes have two each)
+- A test asserts the simulation is `dt`-independent: the same network run for 10
+  minutes at 10 Hz, 4 Hz, 2 Hz and 1 Hz agrees to within 1%. Phase 2's offline solver is
+  only correct if this holds — see `MECHANICS.md` § Routing solve.
+
+  `dt` has to stay well below link latency for this to mean anything. Arrival is quantised
+  to tick boundaries, so a step comparable to a link's latency changes *when* material
+  lands, not just the rate it lands at — and a single step longer than the latency delivers
+  nothing at all, because a segment cannot depart and arrive in the same tick. Resolution
+  coarser than that is `BALANCE.md` § 8's job, not the tick's.
+- Same seed produces byte-identical clusters across runs, including after the
+  constructive seed guarantees in `BALANCE.md` § Seed guarantees
 
 ---
 
@@ -40,9 +54,14 @@ Still headless.
 - `save.ts` — serialize, deserialize, version field, migration hook
 
 **Acceptance:**
-- Resolving 12 hours offline completes in under 20ms
+- Resolving 12 hours offline completes in under 20ms, measured as a steady-state cost
+  rather than a single cold sample. The first call in a fresh process spends most of its
+  time being compiled, not solving; measure best-of-N and bound the cold path separately.
 - Offline result matches a slow tick-by-tick reference simulation of the same
-  period to within 1%, verified by a test that runs both
+  period to within 1%, verified by a test that runs both. Assert this over a period
+  well above `offlineClosedFormMinSeconds`; closed-form resolution discards latency,
+  so short absences take the real-tick path instead and the ±1% claim does not apply
+  to them — see `BALANCE.md` § 8.
 - A save round-trips losslessly
 - Depletion events during offline are correctly ordered and applied
 
@@ -68,7 +87,8 @@ Minimum viable interface. Ugly is fine. Functional is not optional.
 - A person can play the first 40 minutes end to end: claim stars, build links, watch
   a star deplete, react by expanding
 - Closing the tab for 10 minutes and returning produces correct state
-- Frame rate stays above 55fps with 40 stars and 60 links
+- Frame rate stays above 55fps with 40 stars and 60 links — measured at 60 fps (vsync-capped)
+  in headless Chromium at 1400×860
 
 **Stop here and play it for a full session before continuing.** Everything after
 this is amplification. If the first 40 minutes aren't interesting with plain circles
@@ -85,11 +105,20 @@ and lines, the visuals will not save it, and the fix belongs in `BALANCE.md` § 
 - Alerts strip
 - Collapse: chart award, cluster regeneration, chart tree UI and effects
 
+Four chart nodes unlock features scheduled for Phase 6 — `Routing profiles`,
+`Standing orders`, `Folded space`, and `Parallel refining`'s interaction with hub slots.
+Render them explicitly locked with the phase they arrive in; do not hide them. The
+`Routing profiles` decision at the first collapse is called out in `BALANCE.md` § 7 as
+the tension of the first prestige, so the player should see it coming even while it is
+unbuyable.
+
 **Acceptance:**
 - A full run to first collapse is playable and lands within the § 10 pacing targets,
   measured by actually playing it and logging timestamps
 - Chart tree purchases persist across collapse and measurably accelerate run 2
-- Second run reaches 25 cores roughly 2.6× faster than the first
+- Second run reaches 25 cores roughly 2.6× faster than the first. `yieldMult` in
+  `BALANCE.md` § Reserve and yield is the intended lever; if the measured figure comes
+  in low, that exponent is the first thing to raise.
 
 ---
 
@@ -138,6 +167,11 @@ exactly the kind that only surface after simulated hours.
 
 Keep a permanent test that runs a scripted 6-hour game and asserts conservation of
 material and no NaN anywhere in state. Run it in CI.
+
+Run it at a coarse step (1 Hz), not the live 10 Hz. Conservation and finiteness are
+`dt`-independent properties and the step sizes are compared against each other separately,
+so the endurance test buys nothing from the finer step — and at 10 Hz on a realistic
+40-star cluster it takes ~7.4s, which would spend most of the 10-second budget on one test.
 
 ---
 

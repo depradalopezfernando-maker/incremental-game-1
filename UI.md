@@ -104,11 +104,25 @@ Rate is coloured — neutral when positive, warm when negative. A negative alloy
 means you're consuming faster than producing, which is often fine and shouldn't
 alarm, hence warm rather than red.
 
+**The stockpile figure is the network-wide sum of every star's buffer for that
+resource.** There is no separate global pool; material always lives somewhere. A
+purchase debits stars holding that resource, nearest-first from the thing being bought,
+so a full buffer on the far frontier is spendable — just as a matter of accounting, with
+no transit involved. Co-location is a constraint on *refining* only (`MECHANICS.md`
+§ 4), and that is the one place it earns its keep.
+
+Displayed rates are smoothed with an exponential moving average over ~2 s. Instantaneous
+rates at a 10 Hz step are noise, and jittering digits are the fastest way to make this
+game feel cheap.
+
 ## Number formatting
 
-- Below 10,000: integer with thousands separators
-- 10,000 to 999,999: one decimal + `K` (`24.6K`)
-- 1e6 and above: two decimals + `M`, `B`, `T`
+- Below 10: one decimal (`4.2`, `0.6`) — buffers and refined goods are floats and the
+  first few units of anything matter
+- 10 to 9,999: integer with thousands separators
+- 10,000 to 999,949: one decimal + `K` (`24.6K`)
+- 999,950 and above: two decimals + `M`, `B`, `T` — the rollover point is chosen so
+  nothing ever renders as `1000.0K`
 - Rates: two decimals below 10, one decimal below 100, integer above (`0.83/s`,
   `4.2/s`, `31/s`)
 - Time: `4m 12s`, `2h 06m`, `—` for infinite

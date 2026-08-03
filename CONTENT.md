@@ -44,6 +44,15 @@ A player should learn to read the map by colour within ten minutes and never nee
 to check a legend after that. Class colour is the single most important visual
 signal in the game.
 
+Two clarifications on the table above:
+
+- **Binary** is a single resource — hydrogen — at double yield, not two different
+  outputs. `Star.resource` stays a single value. It reads as two points on the map and
+  behaves as one rich hydrogen source.
+- **Wormhole anchor** has `resource: null` and never produces anything. It generates at
+  minimum node tier 1, because claiming it costs a port and a wormhole costs two more —
+  see `MECHANICS.md` § 7.
+
 ## Resources
 
 | Resource | Icon idea | Colour |
@@ -60,8 +69,8 @@ reads as precious.
 
 ## Chart tree
 
-~28 nodes. Tree layout: three branches from a root, converging at the wormhole node.
-Costs in charts.
+27 nodes, 372 charts total. Tree layout: three branches from a root, converging at the
+wormhole node. Costs in charts.
 
 ### Branch: Extraction
 
@@ -108,9 +117,16 @@ Costs in charts.
 
 | Node | Cost | Requires | Effect |
 |---|---|---|---|
-| Folded space | 30 | one node from each branch at cost ≥20 | Unlock wormhole links and anchors |
+| Folded space | 30 | one node from each branch at cost ≥11 | Unlock wormhole links and anchors |
 
-Total: ~342 charts.
+Totals: Extraction 72 · Infrastructure 173 · Control 97 · Convergence 30 = **372
+charts across 27 nodes.**
+
+The `≥11` threshold is chosen so the cheapest satisfying set is Deep survey III (11) +
+Phase alignment II (13) + Salvage protocol (14) = 38, putting wormholes at 68 charts all
+in and reachable by the third collapse (~82 charts cumulative). The Extraction branch has no node priced between
+11 and 24, so any higher threshold forces Deep survey IV and delays wormholes a whole
+collapse — see `BALANCE.md` § 7.
 
 **Design note on the Control branch:** these are almost all *information* upgrades
 rather than power upgrades. That is intentional. In a game where the fun is
@@ -134,6 +150,16 @@ Hydrogen vented for 6h 20m — Bell-4 outbound link at capacity.
 
 The last line is the important one: name the specific cause, not just the total.
 If nothing was vented, say so plainly: `Vented   nothing.`
+
+If the absence exceeded `offlineCap`, say so on the first line rather than silently
+resolving less time than elapsed:
+
+```
+Away 26h 04m · 14h resolved (maximum)
+```
+
+The cap is the one place the game could quietly shortchange the player, so it is stated
+plainly and without apology, in the same register as everything else.
 
 ## Collapse copy
 
