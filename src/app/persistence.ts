@@ -31,7 +31,17 @@ function storage(): Storage | null {
   }
 }
 
+/**
+ * Set once the run has been discarded, so nothing writes it back.
+ *
+ * Without this a reset cannot work: clearing storage and reloading fires `visibilitychange`
+ * on the way out, the loop dutifully saves the run being discarded, and the "new" game loads
+ * the old one straight back.
+ */
+let discarded = false;
+
 export function save(state: GameState, at: number = Date.now()): void {
+  if (discarded) return;
   const store = storage();
   if (store === null) return;
   try {
@@ -44,6 +54,22 @@ export function save(state: GameState, at: number = Date.now()): void {
 
 export function clearSave(): void {
   storage()?.removeItem(SAVE_KEY);
+}
+
+/**
+ * Discard the run: erase the save and refuse every further write.
+ *
+ * Separate from the reload so it can be tested without a browser. Callers reload afterwards;
+ * a fresh load with no save generates a new cluster.
+ */
+export function discardRun(): void {
+  discarded = true;
+  clearSave();
+}
+
+/** Test seam — the module-level flag would otherwise leak between cases. */
+export function resumeSaving(): void {
+  discarded = false;
 }
 
 /**

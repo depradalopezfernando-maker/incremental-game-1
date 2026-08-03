@@ -296,3 +296,32 @@
   color: var(--text-faint);
   font-size: 11px;
 }
+
+.reset {
+  flex: 0 0 auto;
+  padding: 4px 9px;
+  background: transparent;
+  border: 1px solid var(--edge);
+  border-radius: 3px;
+  color: var(--text-faint);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.reset:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.reset:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Armed: this erases the run, so it stops looking like an idle control. */
+.resetArmed,
+.resetArmed:hover {
+  border-color: var(--warm);
+  color: var(--warm);
+}

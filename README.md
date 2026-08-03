@@ -63,7 +63,9 @@ depletion lands as a moment or a chore. Both are `BALANCE.md` § 10 problems if 
 Autosaves every 20 seconds and whenever the tab is hidden, into `localStorage` under
 `lightlace.save.v1`.
 
-**To start over:** open the browser console and run `localStorage.clear()`, then reload.
+**To start over:** the **New cluster** button at the bottom right. It arms on the first click
+and discards on the second, so it cannot be hit by accident, and it disarms itself after five
+seconds. Everything is erased — there is no undo.
 
 **To test offline progress:** close the tab, wait a couple of minutes, and reopen it. The
 arrival line under the map reports what was produced, what depleted, and what was vented.

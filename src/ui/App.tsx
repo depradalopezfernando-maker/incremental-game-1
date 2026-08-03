@@ -5,10 +5,11 @@
  * The map is the game; everything else is chrome.
  */
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { OfflineResult } from '../sim/offline';
 import type { GameState } from '../sim/types';
 import { startLoop } from '../app/loop';
+import { discardRun } from '../app/persistence';
 import { useUi } from '../app/store';
 import styles from './app.module.css';
 import { amount, duration, resourceLabel } from './format';
@@ -74,7 +75,47 @@ function NoticeLine(): JSX.Element {
       <span className={styles.hint}>
         drag to pan · wheel to zoom · drag star to star to link
       </span>
+      <ResetRun />
     </>
+  );
+}
+
+/**
+ * Discard the run and generate a new cluster.
+ *
+ * Two-step rather than a dialog: UI.md permits no modals during play, and this erases
+ * everything. The wording says what is actually lost rather than asking "are you sure".
+ *
+ * Reloading is the simplest correct way to start over — it re-runs the same load path a
+ * returning player takes, so there is no second code path that builds a fresh game slightly
+ * differently. `discardRun` has to come first, because the reload fires `visibilitychange` and
+ * the loop would otherwise save the run being discarded straight back over the empty slot.
+ */
+function ResetRun(): JSX.Element {
+  const [armed, setArmed] = useState(false);
+
+  useEffect(() => {
+    if (!armed) return;
+    // Disarm if the player thinks better of it and looks away.
+    const timer = window.setTimeout(() => setArmed(false), 5000);
+    return () => window.clearTimeout(timer);
+  }, [armed]);
+
+  return (
+    <button
+      type="button"
+      className={armed ? `${styles.reset} ${styles.resetArmed}` : styles.reset}
+      onClick={() => {
+        if (!armed) {
+          setArmed(true);
+          return;
+        }
+        discardRun();
+        window.location.reload();
+      }}
+    >
+      {armed ? 'Confirm — discard this cluster' : 'New cluster'}
+    </button>
   );
 }
 

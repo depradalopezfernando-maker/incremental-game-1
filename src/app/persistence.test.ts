@@ -11,7 +11,7 @@ import { held } from '../sim/actions';
 import { OFFLINE_CAP_SECONDS, SIM_STEP_SECONDS } from '../sim/constants';
 import { run, spanningTreeCluster } from '../sim/fixtures';
 import { SAVE_KEY } from '../sim/save';
-import { clearSave, load, save } from './persistence';
+import { clearSave, discardRun, load, resumeSaving, save } from './persistence';
 
 /** Minimal localStorage, since these tests run headless. */
 class MemoryStorage {
@@ -43,6 +43,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // The discard flag is module-level, so it would otherwise leak into later cases.
+  resumeSaving();
   vi.unstubAllGlobals();
 });
 
@@ -134,6 +136,44 @@ describe('a save that cannot be read', () => {
 
     const result = load(NOW, 1);
     expect(result.loadError).toContain('newer than this build');
+  });
+});
+
+describe('discarding a run', () => {
+  test('erases the save', () => {
+    save(spanningTreeCluster(1), NOW);
+    expect(window.localStorage.getItem(SAVE_KEY)).not.toBeNull();
+
+    discardRun();
+    expect(window.localStorage.getItem(SAVE_KEY)).toBeNull();
+  });
+
+  /**
+   * The reason this is not just `clearSave()`. Reloading fires `visibilitychange`, the loop
+   * saves on the way out, and the discarded run would land straight back in storage — which is
+   * exactly the trap that made an earlier browser test silently load the wrong save.
+   */
+  test('refuses every write afterwards, so the reload cannot resurrect it', () => {
+    const state = spanningTreeCluster(1);
+    save(state, NOW);
+    discardRun();
+
+    save(state, NOW);
+    expect(window.localStorage.getItem(SAVE_KEY)).toBeNull();
+  });
+
+  test('a load after discarding generates a fresh cluster', () => {
+    const played = spanningTreeCluster(20260730);
+    run(played, 300, SIM_STEP_SECONDS);
+    save(played, NOW);
+
+    discardRun();
+    const result = load(NOW + 60_000, 4242);
+
+    expect(result.state.run.elapsed).toBe(0);
+    expect(result.offline).toBeNull();
+    expect(result.loadError).toBeNull();
+    expect(result.state.run.links).toHaveLength(0);
   });
 });
 
